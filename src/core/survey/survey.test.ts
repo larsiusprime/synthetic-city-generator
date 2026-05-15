@@ -3,6 +3,8 @@ import { centeredGridExtent, makeFrame } from '../geo';
 import type { RiverPath } from '../terrain';
 import { pickDowntownAnchor } from './downtown';
 import { SECTION_METERS, SECTIONS_PER_TOWNSHIP, generateGhostGrid } from './grid';
+import { TOWNSITE_SIDE_METERS, buildTownsite } from './townsite';
+import { buildTrunkStreets } from './streets';
 
 const KANSAS_CITY = { lat: 39.0997, lon: -94.5786 };
 
@@ -89,5 +91,63 @@ describe('pickDowntownAnchor', () => {
     const dN = (downtown.utm.n - frame.anchorN) / SECTION_METERS;
     expect(Math.abs(dE - Math.round(dE))).toBeLessThan(1e-6);
     expect(Math.abs(dN - Math.round(dN))).toBeLessThan(1e-6);
+  });
+});
+
+describe('buildTownsite', () => {
+  it('with bank=null, is centered on the downtown anchor', () => {
+    const frame = makeFrame(KANSAS_CITY);
+    const downtown = {
+      utm: { e: frame.anchorE + 100, n: frame.anchorN - 200 },
+      reason: 'centroid-section-corner' as const,
+    };
+    const t = buildTownsite(downtown, null);
+    expect(t.sideMeters).toBeCloseTo(TOWNSITE_SIDE_METERS, 6);
+    expect(t.center).toEqual(downtown.utm);
+    expect(t.bank).toBeNull();
+  });
+
+  it('with bank=north, shifts the townsite so the anchor sits at the south edge midpoint', () => {
+    const frame = makeFrame(KANSAS_CITY);
+    const downtown = {
+      utm: { e: frame.anchorE, n: frame.anchorN },
+      reason: 'river-section-intersection' as const,
+    };
+    const t = buildTownsite(downtown, 'north');
+    const half = TOWNSITE_SIDE_METERS / 2;
+    expect(t.center.e).toBeCloseTo(downtown.utm.e, 6);
+    expect(t.center.n).toBeCloseTo(downtown.utm.n + half, 6);
+    // Anchor lies on the south edge of the townsite.
+    expect(t.sw.n).toBeCloseTo(downtown.utm.n, 6);
+    expect(t.se.n).toBeCloseTo(downtown.utm.n, 6);
+  });
+});
+
+describe('buildTrunkStreets', () => {
+  const frame = makeFrame(KANSAS_CITY);
+  const anchor = { utm: { e: frame.anchorE, n: frame.anchorN }, reason: 'centroid-section-corner' as const };
+
+  it('riverless townsite: Main Street + First Avenue cross at center', () => {
+    const t = buildTownsite(anchor, null);
+    const streets = buildTrunkStreets(t, anchor);
+    expect(streets.map((s) => s.name).sort()).toEqual(['First Avenue', 'Main Street']);
+    const main = streets.find((s) => s.name === 'Main Street')!;
+    expect(main.a.n).toBeCloseTo(t.center.n, 6);
+    expect(main.b.n).toBeCloseTo(t.center.n, 6);
+  });
+
+  it('river-bank townsite: Front Street along the river, Main Street inland', () => {
+    const t = buildTownsite(anchor, 'north');
+    const streets = buildTrunkStreets(t, anchor);
+    const front = streets.find((s) => s.name === 'Front Street')!;
+    const main = streets.find((s) => s.name === 'Main Street')!;
+    // Front Street runs along the south (riverfront) edge of the townsite.
+    expect(front.a.n).toBeCloseTo(anchor.utm.n, 6);
+    expect(front.b.n).toBeCloseTo(anchor.utm.n, 6);
+    expect(front.axis).toBe('parallel');
+    // Main Street extends inland (north) from the anchor.
+    expect(main.a.n).toBeCloseTo(anchor.utm.n, 6);
+    expect(main.b.n).toBeCloseTo(anchor.utm.n + TOWNSITE_SIDE_METERS, 6);
+    expect(main.axis).toBe('meridian');
   });
 });

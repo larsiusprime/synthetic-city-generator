@@ -4,7 +4,13 @@ import { makeFrame } from '../core/geo';
 import { Prng } from '../core/prng';
 import { generateTerrain } from '../core/terrain';
 import { extractContours, extractWaterPolygons } from '../core/terrain/vectorize';
-import { generateGhostGrid, pickDowntownAnchor } from '../core/survey';
+import {
+  buildTownsite,
+  buildTrunkStreets,
+  generateGhostGrid,
+  pickDowntownAnchor,
+  pickTownsiteBank,
+} from '../core/survey';
 import type { GenerateRequest, GenerateResponse, WorkerOutbound } from './protocol';
 
 const ctx = self as unknown as DedicatedWorkerGlobalScope;
@@ -50,6 +56,10 @@ function run(req: GenerateRequest): GenerateResponse {
 
   const grid = generateGhostGrid(frame, terrain.extent);
   const downtown = pickDowntownAnchor(terrain.extent, grid, terrain.river);
+  const bankCoin = prng.substream('survey.townsite_bank').bool();
+  const bank = pickTownsiteBank(terrain.river, bankCoin);
+  const townsite = buildTownsite(downtown, bank);
+  const streets = buildTrunkStreets(townsite, downtown);
 
   return {
     id: req.id,
@@ -77,5 +87,7 @@ function run(req: GenerateRequest): GenerateResponse {
     waterPolygons,
     grid,
     downtown,
+    townsite,
+    streets,
   };
 }

@@ -1,6 +1,6 @@
 import { utmToLonLat, type GeoFrame, type GridExtent, type UtmCoord } from '../geo';
 import type { ContourLevel } from '../terrain/vectorize';
-import type { DowntownAnchor, GhostGrid } from '../survey';
+import type { DowntownAnchor, GhostGrid, Street, Townsite } from '../survey';
 
 type Position = readonly [number, number];
 
@@ -106,6 +106,31 @@ export function ghostGridToGeoJson(frame: GeoFrame, grid: GhostGrid): FeatureCol
     },
   }));
   return { type: 'FeatureCollection', features };
+}
+
+export function townsiteToGeoJson(frame: GeoFrame, townsite: Townsite): FeatureCollection {
+  const ring: UtmCoord[] = [townsite.sw, townsite.se, townsite.ne, townsite.nw, townsite.sw];
+  return {
+    type: 'FeatureCollection',
+    features: [
+      {
+        type: 'Feature',
+        geometry: { type: 'Polygon', coordinates: [utmRingToLonLat(frame, ring)] },
+        properties: { kind: 'townsite', side_meters: townsite.sideMeters },
+      },
+    ],
+  };
+}
+
+export function streetsToGeoJson(frame: GeoFrame, streets: readonly Street[]): FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: streets.map((s) => ({
+      type: 'Feature',
+      geometry: { type: 'LineString', coordinates: utmRingToLonLat(frame, [s.a, s.b]) },
+      properties: { kind: 'street', name: s.name, axis: s.axis },
+    })),
+  };
 }
 
 export function downtownToGeoJson(frame: GeoFrame, downtown: DowntownAnchor): FeatureCollection {

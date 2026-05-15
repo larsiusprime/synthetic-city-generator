@@ -1,6 +1,6 @@
 import type { LonLat, UtmCoord } from '../core/geo';
 import type { TerrainConfig, RiverSide } from '../core/terrain';
-import type { GhostGrid, DowntownAnchor } from '../core/survey';
+import type { GhostGrid, DowntownAnchor, Townsite, Street } from '../core/survey';
 
 export interface GenerateRequest {
   id: number;
@@ -49,6 +49,8 @@ export interface GenerateResponse {
   waterPolygons: UtmCoord[][];
   grid: GhostGrid;
   downtown: DowntownAnchor;
+  townsite: Townsite;
+  streets: Street[];
 }
 
 export interface ErrorResponse {

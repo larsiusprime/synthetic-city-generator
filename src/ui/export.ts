@@ -5,8 +5,10 @@ import {
   downtownToGeoJson,
   extentToGeoJson,
   ghostGridToGeoJson,
+  streetsToGeoJson,
   stringify,
   terrainToGeoTiff,
+  townsiteToGeoJson,
   waterPolygonsToGeoJson,
 } from '../core/io';
 import type { GenerateResponse } from '../worker/protocol';
@@ -22,6 +24,8 @@ export function buildExportZip(response: GenerateResponse): Uint8Array {
   const contoursGeoJson = contoursToGeoJson(frame, response.contours);
   const gridGeoJson = ghostGridToGeoJson(frame, response.grid);
   const downtownGeoJson = downtownToGeoJson(frame, response.downtown);
+  const townsiteGeoJson = townsiteToGeoJson(frame, response.townsite);
+  const streetsGeoJson = streetsToGeoJson(frame, response.streets);
 
   const tiff = terrainToGeoTiff(frame, {
     config: response.config,
@@ -41,6 +45,8 @@ export function buildExportZip(response: GenerateResponse): Uint8Array {
     'contours.geojson': encoder.encode(stringify(contoursGeoJson)),
     'ghost-grid.geojson': encoder.encode(stringify(gridGeoJson)),
     'downtown.geojson': encoder.encode(stringify(downtownGeoJson)),
+    'townsite.geojson': encoder.encode(stringify(townsiteGeoJson)),
+    'streets.geojson': encoder.encode(stringify(streetsGeoJson)),
     'dem.tif': new Uint8Array(tiff),
     'README.txt': encoder.encode(buildReadme(response)),
   });
@@ -60,12 +66,17 @@ function buildReadme(response: GenerateResponse): string {
     '',
     `Downtown anchor: ${response.downtown.utm.e.toFixed(1)} E, ${response.downtown.utm.n.toFixed(1)} N (${response.downtown.reason})`,
     '',
+    `Townsite: ${response.townsite.sideMeters.toFixed(1)} m square, centered on downtown`,
+    `Streets: ${response.streets.map((s) => s.name).join(' + ')}`,
+    '',
     'Files:',
     '  extent.geojson     - rectangular footprint of the terrain (EPSG:4326)',
     '  water.geojson      - water polygons in the carved river valley (EPSG:4326)',
     '  contours.geojson   - elevation contour lines, 5m intervals (EPSG:4326)',
     '  ghost-grid.geojson - PLS section grid (1-mile spacing, anchor at section corner; township boundaries tagged) (EPSG:4326)',
     '  downtown.geojson   - downtown anchor point (EPSG:4326)',
+    '  townsite.geojson   - quarter-section townsite polygon centered on downtown (EPSG:4326)',
+    '  streets.geojson    - trunk streets through downtown (EPSG:4326)',
     `  dem.tif            - Float32 DEM in projected UTM (EPSG:${response.zoneEpsg})`,
     '',
   ].join('\n');

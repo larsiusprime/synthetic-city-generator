@@ -40,32 +40,61 @@ When in doubt: cut scope, not corners.
 
 ---
 
-## Stage 1 — the only thing we are building right now
+## Stages
 
-**Render a procedurally-generated terrain heightmap on a MapLibre map at a
-user-chosen real-world lat/lon anchor, exported as GeoJSON.**
+Stages are completed sequentially, each one running end-to-end. Per Gall's
+Law: a stage's scope is exactly what it says — no preemptive scaffolding for
+later stages. Future stages emerge from what we learn building current ones,
+so anything beyond the **Current focus** section is illustrative, not
+contractual.
 
-That's it. No city yet. No parcels, no streets, no agents, no time.
+### Completed
 
-This stage forces us to commit to and validate:
+- **Stage 1 — Terrain.** Procedurally-generated heightmap (Midwestern
+  river-city algorithm: fBm + sinuous river carve + asymmetric bluff)
+  anchored to a real lat/lon, rendered as a hillshaded WebGL custom layer
+  over MapLibre, exported as GeoJSON (extent, water polygons, contours) and
+  a Float32 GeoTIFF DEM. Validated the full pipeline: seeded PRNG with
+  named substreams, headless core, Web Worker sim, custom MapLibre layer
+  via `defaultProjectionData.mainMatrix`, marching-squares vectorization,
+  and the zip export workflow.
 
-- Vite + TypeScript project setup
-- MapLibre-GL integration
-- The Web Worker boundary for the sim
-- The `SharedArrayBuffer` / typed-array data path from sim → render
-- A custom WebGL MapLibre layer reading directly from a shared buffer
-- The local-UTM ↔ WGS84 projection (proj4js)
-- Seeded deterministic PRNG with named substreams
-- GeoJSON export of a generated artifact (here: terrain contours or a
-  water polygon)
-- The headless-core / browser-frontend split (see below)
+- **Stage 2 — Ghost grid + downtown anchor.** A cardinal-aligned PLS
+  section grid is laid over the terrain (the user's anchor lat/lon sits
+  exactly at the (0, 0) section corner; every sixth line marked as a
+  township boundary). A "downtown anchor" point is picked: for a river
+  city, the river × section-line intersection nearest the terrain
+  centroid; for a riverless city, the section corner nearest the centroid.
+  Both render as MapLibre GeoJSON vector layers with sidebar visibility
+  toggles, and both join the export bundle (`ghost-grid.geojson`,
+  `downtown.geojson`).
 
-Done = open the app, choose lat/lon + seed, click Generate, see hillshaded
-terrain on the map at the correct geographic location, export it.
+- **Stage 3 — Original townsite + trunk streets.** A quarter-section
+  (½ mi × ½ mi, 160 acres) cardinal-aligned polygon designates the
+  platted area of the founding town. For a river city the townsite sits
+  predominantly on one bank — the bluff side if there is one, otherwise
+  a seeded coin flip — with the downtown anchor at the midpoint of the
+  riverfront edge. For a riverless city the townsite is centered on the
+  anchor. Trunk streets: river cities get Front Street running along the
+  riverfront edge and Main Street running perpendicular inland from the
+  anchor (a T-junction at the anchor); riverless cities get Main Street
+  (E-W) and First Avenue (N-S) crossing at the center. Both render as
+  MapLibre GeoJSON layers with their own sidebar visibility toggles and
+  join the export bundle (`townsite.geojson`, `streets.geojson`).
 
-Everything below this section describes the eventual system. **Do not
-implement any of it during Stage 1.** Stage 2+ are TBD; they emerge from
-what we learn building Stage 1.
+### Current focus
+
+**Stage 4 — TBD.** Pick from the eventual architecture (streets within
+the townsite expanding outward, blocks emerging between streets, time
+axis with a founding year, suitability scoring of sections, etc.) once
+Stage 3 has settled.
+
+### Working agreement
+
+Anything not under **Completed** or **Current focus** is roadmap, not plan.
+Do not implement future stages preemptively. When proposing structural
+changes that span multiple stages, write down which stage each change
+belongs to instead of bundling them.
 
 ---
 

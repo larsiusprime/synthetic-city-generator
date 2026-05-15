@@ -2,7 +2,12 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 import { gridExtentCornersLonLat, makeFrame } from './core/geo';
-import { downtownToGeoJson, ghostGridToGeoJson } from './core/io/geojson';
+import {
+  downtownToGeoJson,
+  ghostGridToGeoJson,
+  streetsToGeoJson,
+  townsiteToGeoJson,
+} from './core/io/geojson';
 import { TerrainLayer } from './render/terrain-layer';
 import { Sidebar } from './ui/sidebar';
 import { buildExportZip, triggerDownload } from './ui/export';
@@ -14,6 +19,11 @@ const TERRAIN_LAYER_ID = 'hjemby-terrain';
 const GRID_SOURCE_ID = 'hjemby-grid';
 const GRID_SECTION_LAYER_ID = 'hjemby-grid-section';
 const GRID_TOWNSHIP_LAYER_ID = 'hjemby-grid-township';
+const TOWNSITE_SOURCE_ID = 'hjemby-townsite';
+const TOWNSITE_FILL_LAYER_ID = 'hjemby-townsite-fill';
+const TOWNSITE_LINE_LAYER_ID = 'hjemby-townsite-line';
+const STREETS_SOURCE_ID = 'hjemby-streets';
+const STREETS_LAYER_ID = 'hjemby-streets';
 const DOWNTOWN_SOURCE_ID = 'hjemby-downtown';
 const DOWNTOWN_LAYER_ID = 'hjemby-downtown';
 
@@ -119,6 +129,12 @@ function installLayer(response: GenerateResponse): void {
     map.removeLayer(TERRAIN_LAYER_ID);
   }
   map.addLayer(layer);
+  // On regenerate, the overlays already exist and the freshly-added terrain
+  // sits on top of them. Slide it back beneath the first overlay so they stay
+  // visible.
+  if (map.getLayer(GRID_SECTION_LAYER_ID)) {
+    map.moveLayer(TERRAIN_LAYER_ID, GRID_SECTION_LAYER_ID);
+  }
   map.triggerRepaint();
 }
 
@@ -161,6 +177,57 @@ function installOverlays(response: GenerateResponse): void {
     });
   }
 
+  const townsiteFc = townsiteToGeoJson(frame, response.townsite);
+  const townsiteSource = map.getSource(TOWNSITE_SOURCE_ID);
+  if (townsiteSource && townsiteSource.type === 'geojson') {
+    (townsiteSource as maplibregl.GeoJSONSource).setData(townsiteFc as never);
+  } else {
+    map.addSource(TOWNSITE_SOURCE_ID, { type: 'geojson', data: townsiteFc as never });
+  }
+  if (!map.getLayer(TOWNSITE_FILL_LAYER_ID)) {
+    map.addLayer({
+      id: TOWNSITE_FILL_LAYER_ID,
+      type: 'fill',
+      source: TOWNSITE_SOURCE_ID,
+      paint: {
+        'fill-color': '#ffd860',
+        'fill-opacity': 0.08,
+      },
+    });
+  }
+  if (!map.getLayer(TOWNSITE_LINE_LAYER_ID)) {
+    map.addLayer({
+      id: TOWNSITE_LINE_LAYER_ID,
+      type: 'line',
+      source: TOWNSITE_SOURCE_ID,
+      paint: {
+        'line-color': '#ffd860',
+        'line-width': 2,
+        'line-opacity': 0.9,
+      },
+    });
+  }
+
+  const streetsFc = streetsToGeoJson(frame, response.streets);
+  const streetsSource = map.getSource(STREETS_SOURCE_ID);
+  if (streetsSource && streetsSource.type === 'geojson') {
+    (streetsSource as maplibregl.GeoJSONSource).setData(streetsFc as never);
+  } else {
+    map.addSource(STREETS_SOURCE_ID, { type: 'geojson', data: streetsFc as never });
+  }
+  if (!map.getLayer(STREETS_LAYER_ID)) {
+    map.addLayer({
+      id: STREETS_LAYER_ID,
+      type: 'line',
+      source: STREETS_SOURCE_ID,
+      paint: {
+        'line-color': '#f4efe2',
+        'line-width': 3,
+        'line-opacity': 0.95,
+      },
+    });
+  }
+
   const downtownSource = map.getSource(DOWNTOWN_SOURCE_ID);
   if (downtownSource && downtownSource.type === 'geojson') {
     (downtownSource as maplibregl.GeoJSONSource).setData(downtownFc as never);
@@ -182,13 +249,18 @@ function installOverlays(response: GenerateResponse): void {
   }
 }
 
-export function setOverlayVisibility(kind: 'grid' | 'downtown', visible: boolean): void {
+export function setOverlayVisibility(kind: 'grid' | 'downtown' | 'townsite' | 'streets', visible: boolean): void {
   const value = visible ? 'visible' : 'none';
-  if (kind === 'grid') {
-    if (map.getLayer(GRID_SECTION_LAYER_ID)) map.setLayoutProperty(GRID_SECTION_LAYER_ID, 'visibility', value);
-    if (map.getLayer(GRID_TOWNSHIP_LAYER_ID)) map.setLayoutProperty(GRID_TOWNSHIP_LAYER_ID, 'visibility', value);
-  } else if (map.getLayer(DOWNTOWN_LAYER_ID)) {
-    map.setLayoutProperty(DOWNTOWN_LAYER_ID, 'visibility', value);
+  const layers: string[] =
+    kind === 'grid'
+      ? [GRID_SECTION_LAYER_ID, GRID_TOWNSHIP_LAYER_ID]
+      : kind === 'townsite'
+        ? [TOWNSITE_FILL_LAYER_ID, TOWNSITE_LINE_LAYER_ID]
+        : kind === 'streets'
+          ? [STREETS_LAYER_ID]
+          : [DOWNTOWN_LAYER_ID];
+  for (const id of layers) {
+    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', value);
   }
 }
 
