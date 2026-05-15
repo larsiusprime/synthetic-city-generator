@@ -1,5 +1,6 @@
 import type { LonLat, UtmCoord } from '../core/geo';
 import type { TerrainConfig, RiverSide } from '../core/terrain';
+import type { GhostGrid, DowntownAnchor } from '../core/survey';
 
 export interface GenerateRequest {
   id: number;
@@ -46,6 +47,8 @@ export interface GenerateResponse {
   river: RiverMessage | null;
   contours: ContourLevelMessage[];
   waterPolygons: UtmCoord[][];
+  grid: GhostGrid;
+  downtown: DowntownAnchor;
 }
 
 export interface ErrorResponse {

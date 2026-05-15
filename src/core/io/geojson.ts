@@ -1,7 +1,13 @@
 import { utmToLonLat, type GeoFrame, type GridExtent, type UtmCoord } from '../geo';
 import type { ContourLevel } from '../terrain/vectorize';
+import type { DowntownAnchor, GhostGrid } from '../survey';
 
 type Position = readonly [number, number];
+
+interface PointGeometry {
+  type: 'Point';
+  coordinates: Position;
+}
 
 interface LineStringGeometry {
   type: 'LineString';
@@ -13,7 +19,7 @@ interface PolygonGeometry {
   coordinates: Position[][];
 }
 
-type Geometry = LineStringGeometry | PolygonGeometry;
+type Geometry = PointGeometry | LineStringGeometry | PolygonGeometry;
 
 export interface Feature<P extends Record<string, unknown> = Record<string, unknown>> {
   type: 'Feature';
@@ -83,6 +89,37 @@ export function contoursToGeoJson(frame: GeoFrame, levels: readonly ContourLevel
     }
   }
   return { type: 'FeatureCollection', features };
+}
+
+export function ghostGridToGeoJson(frame: GeoFrame, grid: GhostGrid): FeatureCollection {
+  const features: Feature[] = grid.lines.map((line) => ({
+    type: 'Feature',
+    geometry: {
+      type: 'LineString',
+      coordinates: utmRingToLonLat(frame, [line.a, line.b]),
+    },
+    properties: {
+      kind: 'ghost-grid',
+      tier: line.tier,
+      direction: line.direction,
+      index: line.index,
+    },
+  }));
+  return { type: 'FeatureCollection', features };
+}
+
+export function downtownToGeoJson(frame: GeoFrame, downtown: DowntownAnchor): FeatureCollection {
+  const ll = utmToLonLat(frame, downtown.utm.e, downtown.utm.n);
+  return {
+    type: 'FeatureCollection',
+    features: [
+      {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [round6(ll.lon), round6(ll.lat)] },
+        properties: { kind: 'downtown-anchor', reason: downtown.reason },
+      },
+    ],
+  };
 }
 
 export function stringify(fc: FeatureCollection): string {

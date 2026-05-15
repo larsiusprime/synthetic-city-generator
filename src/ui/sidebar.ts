@@ -7,9 +7,12 @@ export interface GenerateParams {
   includeRiver: boolean;
 }
 
+export type OverlayKind = 'grid' | 'downtown';
+
 export interface SidebarHandlers {
   onGenerate: (params: GenerateParams) => Promise<void> | void;
   onExport: () => Promise<void> | void;
+  onToggleOverlay: (kind: OverlayKind, visible: boolean) => void;
 }
 
 export class Sidebar {
@@ -72,6 +75,18 @@ export class Sidebar {
           <button type="button" id="export-btn" disabled>Export &hellip;</button>
         </div>
 
+        <fieldset class="overlays">
+          <legend>Overlays</legend>
+          <label class="check">
+            <input type="checkbox" id="overlay-grid" checked />
+            <span>Ghost grid (PLS sections)</span>
+          </label>
+          <label class="check">
+            <input type="checkbox" id="overlay-downtown" checked />
+            <span>Downtown anchor</span>
+          </label>
+        </fieldset>
+
         <p id="gen-status" role="status" aria-live="polite">Idle.</p>
       </form>
     `;
@@ -97,6 +112,13 @@ export class Sidebar {
 
     this.exportBtn.addEventListener('click', () => {
       void this.handlers.onExport();
+    });
+
+    this.q<HTMLInputElement>('#overlay-grid').addEventListener('change', (ev) => {
+      this.handlers.onToggleOverlay('grid', (ev.target as HTMLInputElement).checked);
+    });
+    this.q<HTMLInputElement>('#overlay-downtown').addEventListener('change', (ev) => {
+      this.handlers.onToggleOverlay('downtown', (ev.target as HTMLInputElement).checked);
     });
   }
 

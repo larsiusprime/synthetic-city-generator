@@ -4,6 +4,7 @@ import { makeFrame } from '../core/geo';
 import { Prng } from '../core/prng';
 import { generateTerrain } from '../core/terrain';
 import { extractContours, extractWaterPolygons } from '../core/terrain/vectorize';
+import { generateGhostGrid, pickDowntownAnchor } from '../core/survey';
 import type { GenerateRequest, GenerateResponse, WorkerOutbound } from './protocol';
 
 const ctx = self as unknown as DedicatedWorkerGlobalScope;
@@ -47,6 +48,9 @@ function run(req: GenerateRequest): GenerateResponse {
     terrain.extent,
   );
 
+  const grid = generateGhostGrid(frame, terrain.extent);
+  const downtown = pickDowntownAnchor(terrain.extent, grid, terrain.river);
+
   return {
     id: req.id,
     type: 'result',
@@ -71,5 +75,7 @@ function run(req: GenerateRequest): GenerateResponse {
     river: terrain.river,
     contours,
     waterPolygons,
+    grid,
+    downtown,
   };
 }

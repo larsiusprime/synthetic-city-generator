@@ -2,7 +2,9 @@ import { zipSync } from 'fflate';
 import { centeredGridExtent, makeFrame } from '../core/geo';
 import {
   contoursToGeoJson,
+  downtownToGeoJson,
   extentToGeoJson,
+  ghostGridToGeoJson,
   stringify,
   terrainToGeoTiff,
   waterPolygonsToGeoJson,
@@ -18,6 +20,8 @@ export function buildExportZip(response: GenerateResponse): Uint8Array {
   const extentGeoJson = extentToGeoJson(frame, extent);
   const waterGeoJson = waterPolygonsToGeoJson(frame, response.waterPolygons);
   const contoursGeoJson = contoursToGeoJson(frame, response.contours);
+  const gridGeoJson = ghostGridToGeoJson(frame, response.grid);
+  const downtownGeoJson = downtownToGeoJson(frame, response.downtown);
 
   const tiff = terrainToGeoTiff(frame, {
     config: response.config,
@@ -35,6 +39,8 @@ export function buildExportZip(response: GenerateResponse): Uint8Array {
     'extent.geojson': encoder.encode(stringify(extentGeoJson)),
     'water.geojson': encoder.encode(stringify(waterGeoJson)),
     'contours.geojson': encoder.encode(stringify(contoursGeoJson)),
+    'ghost-grid.geojson': encoder.encode(stringify(gridGeoJson)),
+    'downtown.geojson': encoder.encode(stringify(downtownGeoJson)),
     'dem.tif': new Uint8Array(tiff),
     'README.txt': encoder.encode(buildReadme(response)),
   });
@@ -52,11 +58,15 @@ function buildReadme(response: GenerateResponse): string {
     `Elevation range: ${response.minHeight.toFixed(2)}m to ${response.maxHeight.toFixed(2)}m`,
     `Sea level (river surface datum): ${response.seaLevel}m`,
     '',
+    `Downtown anchor: ${response.downtown.utm.e.toFixed(1)} E, ${response.downtown.utm.n.toFixed(1)} N (${response.downtown.reason})`,
+    '',
     'Files:',
-    '  extent.geojson   - rectangular footprint of the terrain (EPSG:4326)',
-    '  water.geojson    - water polygons in the carved river valley (EPSG:4326)',
-    '  contours.geojson - elevation contour lines, 5m intervals (EPSG:4326)',
-    `  dem.tif          - Float32 DEM in projected UTM (EPSG:${response.zoneEpsg})`,
+    '  extent.geojson     - rectangular footprint of the terrain (EPSG:4326)',
+    '  water.geojson      - water polygons in the carved river valley (EPSG:4326)',
+    '  contours.geojson   - elevation contour lines, 5m intervals (EPSG:4326)',
+    '  ghost-grid.geojson - PLS section grid (1-mile spacing, anchor at section corner; township boundaries tagged) (EPSG:4326)',
+    '  downtown.geojson   - downtown anchor point (EPSG:4326)',
+    `  dem.tif            - Float32 DEM in projected UTM (EPSG:${response.zoneEpsg})`,
     '',
   ].join('\n');
 }

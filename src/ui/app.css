@@ -185,3 +185,22 @@ body {
   border-left-color: #ff7e7e;
   color: #ffb1b1;
 }
+
+#gen-form .overlays {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin: 0;
+  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#gen-form .overlays legend {
+  padding: 0 4px;
+  font-size: 0.8em;
+  letter-spacing: 0.5px;
+  color: var(--fg-dim);
+  text-transform: uppercase;
+  font-weight: 600;
+}

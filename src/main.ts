@@ -2,6 +2,7 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 import { gridExtentCornersLonLat, makeFrame } from './core/geo';
+import { downtownToGeoJson, ghostGridToGeoJson } from './core/io/geojson';
 import { TerrainLayer } from './render/terrain-layer';
 import { Sidebar } from './ui/sidebar';
 import { buildExportZip, triggerDownload } from './ui/export';
@@ -10,6 +11,11 @@ import type { GenerateResponse } from './worker/protocol';
 
 const DEFAULT_LON_LAT: [number, number] = [-94.5786, 39.0997];
 const TERRAIN_LAYER_ID = 'hjemby-terrain';
+const GRID_SOURCE_ID = 'hjemby-grid';
+const GRID_SECTION_LAYER_ID = 'hjemby-grid-section';
+const GRID_TOWNSHIP_LAYER_ID = 'hjemby-grid-township';
+const DOWNTOWN_SOURCE_ID = 'hjemby-downtown';
+const DOWNTOWN_LAYER_ID = 'hjemby-downtown';
 
 const map = new maplibregl.Map({
   container: 'map',
@@ -52,6 +58,7 @@ const sidebar = new Sidebar(document.getElementById('panel-root')!, {
     await whenStyleLoaded();
     latestResponse = response;
     installLayer(response);
+    installOverlays(response);
     flyToExtent(response);
 
     const riverNote = response.river
@@ -75,6 +82,9 @@ const sidebar = new Sidebar(document.getElementById('panel-root')!, {
       const msg = err instanceof Error ? err.message : String(err);
       sidebar.setStatus(`Export failed: ${msg}`, 'error');
     }
+  },
+  onToggleOverlay: (kind, visible) => {
+    setOverlayVisibility(kind, visible);
   },
 });
 
@@ -110,6 +120,76 @@ function installLayer(response: GenerateResponse): void {
   }
   map.addLayer(layer);
   map.triggerRepaint();
+}
+
+function installOverlays(response: GenerateResponse): void {
+  const frame = makeFrame(response.anchor);
+  const gridFc = ghostGridToGeoJson(frame, response.grid);
+  const downtownFc = downtownToGeoJson(frame, response.downtown);
+
+  const gridSource = map.getSource(GRID_SOURCE_ID);
+  if (gridSource && gridSource.type === 'geojson') {
+    (gridSource as maplibregl.GeoJSONSource).setData(gridFc as never);
+  } else {
+    map.addSource(GRID_SOURCE_ID, { type: 'geojson', data: gridFc as never });
+  }
+
+  if (!map.getLayer(GRID_SECTION_LAYER_ID)) {
+    map.addLayer({
+      id: GRID_SECTION_LAYER_ID,
+      type: 'line',
+      source: GRID_SOURCE_ID,
+      filter: ['==', ['get', 'tier'], 'section'],
+      paint: {
+        'line-color': '#d6c79a',
+        'line-width': 0.6,
+        'line-opacity': 0.7,
+      },
+    });
+  }
+  if (!map.getLayer(GRID_TOWNSHIP_LAYER_ID)) {
+    map.addLayer({
+      id: GRID_TOWNSHIP_LAYER_ID,
+      type: 'line',
+      source: GRID_SOURCE_ID,
+      filter: ['==', ['get', 'tier'], 'township'],
+      paint: {
+        'line-color': '#f1d885',
+        'line-width': 1.8,
+        'line-opacity': 0.9,
+      },
+    });
+  }
+
+  const downtownSource = map.getSource(DOWNTOWN_SOURCE_ID);
+  if (downtownSource && downtownSource.type === 'geojson') {
+    (downtownSource as maplibregl.GeoJSONSource).setData(downtownFc as never);
+  } else {
+    map.addSource(DOWNTOWN_SOURCE_ID, { type: 'geojson', data: downtownFc as never });
+  }
+  if (!map.getLayer(DOWNTOWN_LAYER_ID)) {
+    map.addLayer({
+      id: DOWNTOWN_LAYER_ID,
+      type: 'circle',
+      source: DOWNTOWN_SOURCE_ID,
+      paint: {
+        'circle-radius': 7,
+        'circle-color': '#ffd860',
+        'circle-stroke-color': '#1a1a1a',
+        'circle-stroke-width': 1.5,
+      },
+    });
+  }
+}
+
+export function setOverlayVisibility(kind: 'grid' | 'downtown', visible: boolean): void {
+  const value = visible ? 'visible' : 'none';
+  if (kind === 'grid') {
+    if (map.getLayer(GRID_SECTION_LAYER_ID)) map.setLayoutProperty(GRID_SECTION_LAYER_ID, 'visibility', value);
+    if (map.getLayer(GRID_TOWNSHIP_LAYER_ID)) map.setLayoutProperty(GRID_TOWNSHIP_LAYER_ID, 'visibility', value);
+  } else if (map.getLayer(DOWNTOWN_LAYER_ID)) {
+    map.setLayoutProperty(DOWNTOWN_LAYER_ID, 'visibility', value);
+  }
 }
 
 function flyToExtent(response: GenerateResponse): void {
