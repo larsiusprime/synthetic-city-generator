@@ -1,11 +1,12 @@
 import { zipSync } from 'fflate';
 import { centeredGridExtent, makeFrame } from '../core/geo';
 import {
+  blocksToGeoJson,
   contoursToGeoJson,
   downtownToGeoJson,
   extentToGeoJson,
   ghostGridToGeoJson,
-  streetsToGeoJson,
+  streetGridToGeoJson,
   stringify,
   terrainToGeoTiff,
   townsiteToGeoJson,
@@ -25,7 +26,8 @@ export function buildExportZip(response: GenerateResponse): Uint8Array {
   const gridGeoJson = ghostGridToGeoJson(frame, response.grid);
   const downtownGeoJson = downtownToGeoJson(frame, response.downtown);
   const townsiteGeoJson = townsiteToGeoJson(frame, response.townsite);
-  const streetsGeoJson = streetsToGeoJson(frame, response.streets);
+  const streetsGeoJson = streetGridToGeoJson(frame, response.streetGrid);
+  const blocksGeoJson = blocksToGeoJson(frame, response.blocks);
 
   const tiff = terrainToGeoTiff(frame, {
     config: response.config,
@@ -47,6 +49,7 @@ export function buildExportZip(response: GenerateResponse): Uint8Array {
     'downtown.geojson': encoder.encode(stringify(downtownGeoJson)),
     'townsite.geojson': encoder.encode(stringify(townsiteGeoJson)),
     'streets.geojson': encoder.encode(stringify(streetsGeoJson)),
+    'blocks.geojson': encoder.encode(stringify(blocksGeoJson)),
     'dem.tif': new Uint8Array(tiff),
     'README.txt': encoder.encode(buildReadme(response)),
   });
@@ -66,8 +69,9 @@ function buildReadme(response: GenerateResponse): string {
     '',
     `Downtown anchor: ${response.downtown.utm.e.toFixed(1)} E, ${response.downtown.utm.n.toFixed(1)} N (${response.downtown.reason})`,
     '',
-    `Townsite: ${response.townsite.sideMeters.toFixed(1)} m square, centered on downtown`,
-    `Streets: ${response.streets.map((s) => s.name).join(' + ')}`,
+    `Townsite: ${response.townsite.sideMeters.toFixed(1)} m square, bank=${response.townsite.bank ?? 'centered'}`,
+    `Street grid: ${response.streetGrid.divisions}x${response.streetGrid.divisions} blocks (${response.streetGrid.streets.length} lines; streets=${response.streetGrid.streetsScheme}, avenues=${response.streetGrid.avenuesScheme})`,
+    `Public square: block (col=${response.blocks.find((b) => b.publicSquare)?.col}, row=${response.blocks.find((b) => b.publicSquare)?.row})`,
     '',
     'Files:',
     '  extent.geojson     - rectangular footprint of the terrain (EPSG:4326)',
@@ -75,8 +79,9 @@ function buildReadme(response: GenerateResponse): string {
     '  contours.geojson   - elevation contour lines, 5m intervals (EPSG:4326)',
     '  ghost-grid.geojson - PLS section grid (1-mile spacing, anchor at section corner; township boundaries tagged) (EPSG:4326)',
     '  downtown.geojson   - downtown anchor point (EPSG:4326)',
-    '  townsite.geojson   - quarter-section townsite polygon centered on downtown (EPSG:4326)',
-    '  streets.geojson    - trunk streets through downtown (EPSG:4326)',
+    '  townsite.geojson   - quarter-section townsite polygon (EPSG:4326)',
+    '  streets.geojson    - founding-town street grid (EPSG:4326)',
+    '  blocks.geojson     - blocks between streets; public_square=true on the courthouse-square block (EPSG:4326)',
     `  dem.tif            - Float32 DEM in projected UTM (EPSG:${response.zoneEpsg})`,
     '',
   ].join('\n');

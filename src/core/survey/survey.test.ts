@@ -4,7 +4,8 @@ import type { RiverPath } from '../terrain';
 import { pickDowntownAnchor } from './downtown';
 import { SECTION_METERS, SECTIONS_PER_TOWNSHIP, generateGhostGrid } from './grid';
 import { TOWNSITE_SIDE_METERS, buildTownsite } from './townsite';
-import { buildTrunkStreets } from './streets';
+import { STREET_GRID_DIVISIONS, buildStreets } from './streets';
+import { buildBlocks } from './blocks';
 
 const KANSAS_CITY = { lat: 39.0997, lon: -94.5786 };
 
@@ -123,31 +124,88 @@ describe('buildTownsite', () => {
   });
 });
 
-describe('buildTrunkStreets', () => {
+describe('buildStreets', () => {
   const frame = makeFrame(KANSAS_CITY);
   const anchor = { utm: { e: frame.anchorE, n: frame.anchorN }, reason: 'centroid-section-corner' as const };
 
-  it('riverless townsite: Main Street + First Avenue cross at center', () => {
+  it('produces a (divisions+1) x (divisions+1) grid', () => {
     const t = buildTownsite(anchor, null);
-    const streets = buildTrunkStreets(t, anchor);
-    expect(streets.map((s) => s.name).sort()).toEqual(['First Avenue', 'Main Street']);
-    const main = streets.find((s) => s.name === 'Main Street')!;
-    expect(main.a.n).toBeCloseTo(t.center.n, 6);
-    expect(main.b.n).toBeCloseTo(t.center.n, 6);
+    const grid = buildStreets(t, anchor, true);
+    expect(grid.divisions).toBe(STREET_GRID_DIVISIONS);
+    expect(grid.streets).toHaveLength(2 * (STREET_GRID_DIVISIONS + 1));
+    expect(grid.streets.filter((s) => s.axis === 'parallel')).toHaveLength(STREET_GRID_DIVISIONS + 1);
+    expect(grid.streets.filter((s) => s.axis === 'meridian')).toHaveLength(STREET_GRID_DIVISIONS + 1);
   });
 
-  it('river-bank townsite: Front Street along the river, Main Street inland', () => {
+  it('riverless: Main Street and First Avenue at center; other lines from chosen schemes', () => {
+    const t = buildTownsite(anchor, null);
+    const grid = buildStreets(t, anchor, true); // streets numbered, avenues produce
+    const center = STREET_GRID_DIVISIONS / 2;
+    const main = grid.streets.find((s) => s.axis === 'parallel' && s.index === center)!;
+    const first = grid.streets.find((s) => s.axis === 'meridian' && s.index === center)!;
+    expect(main.name).toBe('Main Street');
+    expect(first.name).toBe('First Avenue');
+    const nonTrunkStreet = grid.streets.find((s) => s.axis === 'parallel' && s.index === 0)!;
+    expect(nonTrunkStreet.name).toMatch(/^1st Street$/);
+    const nonTrunkAvenue = grid.streets.find((s) => s.axis === 'meridian' && s.index === 0)!;
+    expect(nonTrunkAvenue.name).toMatch(/Avenue$/);
+    expect(nonTrunkAvenue.name).not.toMatch(/^\d/);
+  });
+
+  it('river north-bank: Front Street at riverfront, Main Avenue through anchor', () => {
     const t = buildTownsite(anchor, 'north');
-    const streets = buildTrunkStreets(t, anchor);
-    const front = streets.find((s) => s.name === 'Front Street')!;
-    const main = streets.find((s) => s.name === 'Main Street')!;
-    // Front Street runs along the south (riverfront) edge of the townsite.
+    const grid = buildStreets(t, anchor, true);
+    const front = grid.streets.find((s) => s.axis === 'parallel' && s.index === 0)!;
+    const main = grid.streets.find((s) => s.axis === 'meridian' && s.index === STREET_GRID_DIVISIONS / 2)!;
+    expect(front.name).toBe('Front Street');
+    expect(main.name).toBe('Main Avenue');
+    // Front Street runs along anchor's N (the riverfront).
     expect(front.a.n).toBeCloseTo(anchor.utm.n, 6);
     expect(front.b.n).toBeCloseTo(anchor.utm.n, 6);
-    expect(front.axis).toBe('parallel');
-    // Main Street extends inland (north) from the anchor.
-    expect(main.a.n).toBeCloseTo(anchor.utm.n, 6);
-    expect(main.b.n).toBeCloseTo(anchor.utm.n + TOWNSITE_SIDE_METERS, 6);
-    expect(main.axis).toBe('meridian');
+  });
+
+  it('flipping the naming coin swaps which axis is numbered vs produce', () => {
+    const t = buildTownsite(anchor, null);
+    const a = buildStreets(t, anchor, true);
+    const b = buildStreets(t, anchor, false);
+    expect(a.streetsScheme).not.toBe(b.streetsScheme);
+    expect(a.avenuesScheme).not.toBe(b.avenuesScheme);
+  });
+});
+
+describe('buildBlocks', () => {
+  const frame = makeFrame(KANSAS_CITY);
+
+  it('produces divisions^2 rectangular blocks tiling the townsite', () => {
+    const anchor = { utm: { e: frame.anchorE, n: frame.anchorN }, reason: 'centroid-section-corner' as const };
+    const t = buildTownsite(anchor, null);
+    const blocks = buildBlocks(t, anchor);
+    expect(blocks).toHaveLength(STREET_GRID_DIVISIONS * STREET_GRID_DIVISIONS);
+    for (const b of blocks) {
+      expect(b.ne.e - b.sw.e).toBeCloseTo(TOWNSITE_SIDE_METERS / STREET_GRID_DIVISIONS, 6);
+      expect(b.ne.n - b.sw.n).toBeCloseTo(TOWNSITE_SIDE_METERS / STREET_GRID_DIVISIONS, 6);
+    }
+  });
+
+  it('designates exactly one public square, nearest to the anchor (NE tiebreak)', () => {
+    const anchor = { utm: { e: frame.anchorE, n: frame.anchorN }, reason: 'centroid-section-corner' as const };
+    const t = buildTownsite(anchor, null);
+    const blocks = buildBlocks(t, anchor);
+    const squares = blocks.filter((b) => b.publicSquare);
+    expect(squares).toHaveLength(1);
+    // For riverless centered townsite, the NE of the four central blocks wins.
+    expect(squares[0]!.col).toBe(STREET_GRID_DIVISIONS / 2);
+    expect(squares[0]!.row).toBe(STREET_GRID_DIVISIONS / 2);
+  });
+
+  it('places the public square at the riverfront for a north-bank townsite', () => {
+    const anchor = { utm: { e: frame.anchorE, n: frame.anchorN }, reason: 'river-section-intersection' as const };
+    const t = buildTownsite(anchor, 'north');
+    const blocks = buildBlocks(t, anchor);
+    const square = blocks.find((b) => b.publicSquare)!;
+    // For north-bank townsite (river to the south), the closest blocks to the
+    // anchor are the southernmost (row=0). NE tiebreak picks col=DIVISIONS/2.
+    expect(square.row).toBe(0);
+    expect(square.col).toBe(STREET_GRID_DIVISIONS / 2);
   });
 });

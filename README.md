@@ -3,11 +3,12 @@
 A synthetic city generator with a deep, simulated history. Browser-first,
 GIS-realistic, deterministic.
 
-> **Stages 1–3 only.** Right now Hjemby generates procedural terrain (Stage 1),
-> a cardinal-aligned PLS-style section grid + downtown anchor (Stage 2), and
-> the original townsite polygon plus Main Street / First Avenue trunk streets
-> (Stage 3). No blocks, no parcels, no agents, no time yet. See
-> [AGENTS.md](AGENTS.md) for what comes later and why we're not building it now.
+> **Stages 1–4 only.** Right now Hjemby generates procedural terrain (Stage 1),
+> a cardinal-aligned PLS-style section grid + downtown anchor (Stage 2), the
+> original townsite polygon plus trunk streets (Stage 3), and a 4×4 founding-
+> town street grid with blocks and a designated public square (Stage 4). No
+> parcels, no buildings, no agents, no time yet. See [AGENTS.md](AGENTS.md)
+> for what comes later and why we're not building it now.
 
 ## Quick start
 
@@ -33,6 +34,7 @@ Click **Export** to download a `.zip` bundle:
 | `downtown.geojson`    | FeatureCollection    | EPSG:4326        |
 | `townsite.geojson`    | FeatureCollection    | EPSG:4326        |
 | `streets.geojson`     | FeatureCollection    | EPSG:4326        |
+| `blocks.geojson`      | FeatureCollection    | EPSG:4326        |
 | `dem.tif`             | GeoTIFF (float32)    | local UTM zone   |
 | `README.txt`          | text                 | -                |
 

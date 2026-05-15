@@ -5,8 +5,9 @@ import { Prng } from '../core/prng';
 import { generateTerrain } from '../core/terrain';
 import { extractContours, extractWaterPolygons } from '../core/terrain/vectorize';
 import {
+  buildBlocks,
+  buildStreets,
   buildTownsite,
-  buildTrunkStreets,
   generateGhostGrid,
   pickDowntownAnchor,
   pickTownsiteBank,
@@ -59,7 +60,9 @@ function run(req: GenerateRequest): GenerateResponse {
   const bankCoin = prng.substream('survey.townsite_bank').bool();
   const bank = pickTownsiteBank(terrain.river, bankCoin);
   const townsite = buildTownsite(downtown, bank);
-  const streets = buildTrunkStreets(townsite, downtown);
+  const namingCoin = prng.substream('survey.street_naming').bool();
+  const streetGrid = buildStreets(townsite, downtown, namingCoin);
+  const blocks = buildBlocks(townsite, downtown);
 
   return {
     id: req.id,
@@ -88,6 +91,7 @@ function run(req: GenerateRequest): GenerateResponse {
     grid,
     downtown,
     townsite,
-    streets,
+    streetGrid,
+    blocks,
   };
 }

@@ -3,9 +3,10 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 
 import { gridExtentCornersLonLat, makeFrame } from './core/geo';
 import {
+  blocksToGeoJson,
   downtownToGeoJson,
   ghostGridToGeoJson,
-  streetsToGeoJson,
+  streetGridToGeoJson,
   townsiteToGeoJson,
 } from './core/io/geojson';
 import { TerrainLayer } from './render/terrain-layer';
@@ -24,6 +25,9 @@ const TOWNSITE_FILL_LAYER_ID = 'hjemby-townsite-fill';
 const TOWNSITE_LINE_LAYER_ID = 'hjemby-townsite-line';
 const STREETS_SOURCE_ID = 'hjemby-streets';
 const STREETS_LAYER_ID = 'hjemby-streets';
+const BLOCKS_SOURCE_ID = 'hjemby-blocks';
+const BLOCKS_FILL_LAYER_ID = 'hjemby-blocks-fill';
+const BLOCKS_LINE_LAYER_ID = 'hjemby-blocks-line';
 const DOWNTOWN_SOURCE_ID = 'hjemby-downtown';
 const DOWNTOWN_LAYER_ID = 'hjemby-downtown';
 
@@ -208,7 +212,38 @@ function installOverlays(response: GenerateResponse): void {
     });
   }
 
-  const streetsFc = streetsToGeoJson(frame, response.streets);
+  const blocksFc = blocksToGeoJson(frame, response.blocks);
+  const blocksSource = map.getSource(BLOCKS_SOURCE_ID);
+  if (blocksSource && blocksSource.type === 'geojson') {
+    (blocksSource as maplibregl.GeoJSONSource).setData(blocksFc as never);
+  } else {
+    map.addSource(BLOCKS_SOURCE_ID, { type: 'geojson', data: blocksFc as never });
+  }
+  if (!map.getLayer(BLOCKS_FILL_LAYER_ID)) {
+    map.addLayer({
+      id: BLOCKS_FILL_LAYER_ID,
+      type: 'fill',
+      source: BLOCKS_SOURCE_ID,
+      paint: {
+        'fill-color': ['case', ['==', ['get', 'public_square'], true], '#5e7e4a', '#3a3024'],
+        'fill-opacity': ['case', ['==', ['get', 'public_square'], true], 0.45, 0.25],
+      },
+    });
+  }
+  if (!map.getLayer(BLOCKS_LINE_LAYER_ID)) {
+    map.addLayer({
+      id: BLOCKS_LINE_LAYER_ID,
+      type: 'line',
+      source: BLOCKS_SOURCE_ID,
+      paint: {
+        'line-color': '#6b5a44',
+        'line-width': 0.8,
+        'line-opacity': 0.7,
+      },
+    });
+  }
+
+  const streetsFc = streetGridToGeoJson(frame, response.streetGrid);
   const streetsSource = map.getSource(STREETS_SOURCE_ID);
   if (streetsSource && streetsSource.type === 'geojson') {
     (streetsSource as maplibregl.GeoJSONSource).setData(streetsFc as never);
@@ -222,7 +257,7 @@ function installOverlays(response: GenerateResponse): void {
       source: STREETS_SOURCE_ID,
       paint: {
         'line-color': '#f4efe2',
-        'line-width': 3,
+        'line-width': 2,
         'line-opacity': 0.95,
       },
     });
@@ -249,7 +284,10 @@ function installOverlays(response: GenerateResponse): void {
   }
 }
 
-export function setOverlayVisibility(kind: 'grid' | 'downtown' | 'townsite' | 'streets', visible: boolean): void {
+export function setOverlayVisibility(
+  kind: 'grid' | 'downtown' | 'townsite' | 'streets' | 'blocks',
+  visible: boolean,
+): void {
   const value = visible ? 'visible' : 'none';
   const layers: string[] =
     kind === 'grid'
@@ -258,7 +296,9 @@ export function setOverlayVisibility(kind: 'grid' | 'downtown' | 'townsite' | 's
         ? [TOWNSITE_FILL_LAYER_ID, TOWNSITE_LINE_LAYER_ID]
         : kind === 'streets'
           ? [STREETS_LAYER_ID]
-          : [DOWNTOWN_LAYER_ID];
+          : kind === 'blocks'
+            ? [BLOCKS_FILL_LAYER_ID, BLOCKS_LINE_LAYER_ID]
+            : [DOWNTOWN_LAYER_ID];
   for (const id of layers) {
     if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', value);
   }

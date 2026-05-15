@@ -75,19 +75,27 @@ contractual.
   predominantly on one bank — the bluff side if there is one, otherwise
   a seeded coin flip — with the downtown anchor at the midpoint of the
   riverfront edge. For a riverless city the townsite is centered on the
-  anchor. Trunk streets: river cities get Front Street running along the
-  riverfront edge and Main Street running perpendicular inland from the
-  anchor (a T-junction at the anchor); riverless cities get Main Street
-  (E-W) and First Avenue (N-S) crossing at the center. Both render as
-  MapLibre GeoJSON layers with their own sidebar visibility toggles and
-  join the export bundle (`townsite.geojson`, `streets.geojson`).
+  anchor.
+
+- **Stage 4 — Street grid + blocks + public square.** The townsite is
+  subdivided by a 4×4 cardinal street grid: 5 streets (E-W) and 5 avenues
+  (N-S), enclosing 16 blocks of ~200 m. Trunk lines retain their iconic
+  names from Stage 3 ("Front Street" along the riverfront, "Main Street"
+  / "Main Avenue" inland, "First Avenue" for riverless); every other line
+  takes its name from a per-seed coin flip — one axis numbered (1st, 2nd,
+  …), the other named alphabetically after produce (Apple, Beet, Cherry,
+  Daikon, Eggplant…). Blocks are computed as the polygons enclosed by
+  the streets; the block closest to the downtown anchor (NE tiebreak) is
+  designated the **public square** and rendered green. New exports:
+  `blocks.geojson`. The old `streets.geojson` now contains all 10 streets
+  rather than the two trunks. The sidebar gained a "Blocks" toggle.
 
 ### Current focus
 
-**Stage 4 — TBD.** Pick from the eventual architecture (streets within
-the townsite expanding outward, blocks emerging between streets, time
-axis with a founding year, suitability scoring of sections, etc.) once
-Stage 3 has settled.
+**Stage 5 — TBD.** Natural candidates: subdivide blocks into parcels;
+add a "founding year" + simple time axis; extend the street grid beyond
+the townsite into adjacent sections; or differentiate block kinds
+(commercial vs residential) as a precursor to land use.
 
 ### Working agreement
 
@@ -116,7 +124,7 @@ core.
 
 ### Single package layout
 
-```
+```text
 hjemby/
 ├── AGENTS.md                 # this file
 ├── LICENSE                   # MIT

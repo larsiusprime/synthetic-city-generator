@@ -7,7 +7,7 @@ export interface GenerateParams {
   includeRiver: boolean;
 }
 
-export type OverlayKind = 'grid' | 'downtown' | 'townsite' | 'streets';
+export type OverlayKind = 'grid' | 'downtown' | 'townsite' | 'streets' | 'blocks';
 
 export interface SidebarHandlers {
   onGenerate: (params: GenerateParams) => Promise<void> | void;
@@ -90,8 +90,12 @@ export class Sidebar {
             <span>Townsite (¼ section)</span>
           </label>
           <label class="check">
+            <input type="checkbox" id="overlay-blocks" checked />
+            <span>Blocks</span>
+          </label>
+          <label class="check">
             <input type="checkbox" id="overlay-streets" checked />
-            <span>Trunk streets</span>
+            <span>Streets</span>
           </label>
         </fieldset>
 
@@ -133,6 +137,9 @@ export class Sidebar {
     });
     this.q<HTMLInputElement>('#overlay-streets').addEventListener('change', (ev) => {
       this.handlers.onToggleOverlay('streets', (ev.target as HTMLInputElement).checked);
+    });
+    this.q<HTMLInputElement>('#overlay-blocks').addEventListener('change', (ev) => {
+      this.handlers.onToggleOverlay('blocks', (ev.target as HTMLInputElement).checked);
     });
   }
 
