@@ -65,7 +65,7 @@ const sidebar = new Sidebar(document.getElementById('panel-root')!, {
     const response = await generateInWorker({
       seed: params.seed,
       anchor: params.anchor,
-      config: { cols: 512, rows: 512, cellSize: 10, includeRiver: params.includeRiver },
+      config: { cols: 512, rows: 512, cellSize: 10, water: params.water },
     });
     const tGen = performance.now() - t0;
 
@@ -75,11 +75,14 @@ const sidebar = new Sidebar(document.getElementById('panel-root')!, {
     installOverlays(response);
     flyToExtent(response);
 
-    const riverNote = response.river
-      ? `river: ${response.river.bluffSide ? response.river.bluffSide + '-bank bluff' : 'symmetric'}`
-      : 'no river';
+    const waterNote =
+      response.config.water === 'none'
+        ? 'no water'
+        : response.river
+          ? `${response.config.water}: ${response.river.bluffSide ? response.river.bluffSide + '-bank bluff' : 'symmetric'}`
+          : response.config.water;
     sidebar.setStatus(
-      `Done in ${tGen.toFixed(0)} ms · ${response.config.cols}×${response.config.rows} @ ${response.config.cellSize}m · ${response.minHeight.toFixed(1)}-${response.maxHeight.toFixed(1)} m · ${riverNote}`,
+      `Done in ${tGen.toFixed(0)} ms · ${response.config.cols}×${response.config.rows} @ ${response.config.cellSize}m · ${response.minHeight.toFixed(1)}-${response.maxHeight.toFixed(1)} m · ${waterNote}`,
       'ok',
     );
     sidebar.setExportReady(true);

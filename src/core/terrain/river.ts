@@ -8,8 +8,14 @@ export interface RiverPath {
   points: UtmCoord[];
   /** True if the river runs roughly east-west; false if north-south. */
   horizontal: boolean;
-  /** Which side of the river bears a bluff/cut bank, or null for a symmetric floodplain. */
+  /** Which side bears a bluff/cut bank, or null for a symmetric / flat-coast case. Independent of citySide. */
   bluffSide: RiverSide | null;
+  /**
+   * Which side the city sits on. For river mode this is the dry/preferred bank;
+   * for shore mode this is the land side (the opposite side is water). Always
+   * set: if a bluff exists, citySide = bluffSide; otherwise it's an independent coin flip.
+   */
+  citySide: RiverSide;
 }
 
 const BLUFF_PROBABILITY = 0.5;
@@ -53,8 +59,11 @@ export function generateRiver(prng: Prng, extent: GridExtent): RiverPath {
     }
   }
 
-  const bluffSide: RiverSide | null = prng.bool(BLUFF_PROBABILITY) ? (prng.bool() ? 'left' : 'right') : null;
-  return { points, horizontal, bluffSide };
+  const bluffSide: RiverSide | null = prng.bool(BLUFF_PROBABILITY)
+    ? prng.bool() ? 'left' : 'right'
+    : null;
+  const citySide: RiverSide = bluffSide ?? (prng.bool() ? 'left' : 'right');
+  return { points, horizontal, bluffSide, citySide };
 }
 
 export interface PolylineDistance {

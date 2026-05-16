@@ -92,7 +92,8 @@ body {
 }
 
 #gen-form input[type='text'],
-#gen-form input[type='number'] {
+#gen-form input[type='number'],
+#gen-form select {
   flex: 1;
   padding: 6px 8px;
   background: var(--bg);
@@ -103,7 +104,8 @@ body {
 }
 
 #gen-form input[type='text']:focus,
-#gen-form input[type='number']:focus {
+#gen-form input[type='number']:focus,
+#gen-form select:focus {
   outline: 2px solid var(--accent);
   outline-offset: -1px;
 }

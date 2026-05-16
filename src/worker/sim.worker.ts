@@ -57,8 +57,7 @@ function run(req: GenerateRequest): GenerateResponse {
 
   const grid = generateGhostGrid(frame, terrain.extent);
   const downtown = pickDowntownAnchor(terrain.extent, grid, terrain.river);
-  const bankCoin = prng.substream('survey.townsite_bank').bool();
-  const bank = pickTownsiteBank(terrain.river, bankCoin);
+  const bank = pickTownsiteBank(terrain.river);
   const water = {
     mask: terrain.waterMask,
     cols: req.config.cols,

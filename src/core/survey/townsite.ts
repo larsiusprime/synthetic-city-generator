@@ -186,11 +186,7 @@ export function bankFromRiver(horizontal: boolean, riverSide: 'left' | 'right'):
   return riverSide === 'left' ? 'west' : 'east';
 }
 
-export function pickTownsiteBank(
-  river: RiverPath | null,
-  coinForRiverWithoutBluff: boolean,
-): TownsiteBank | null {
+export function pickTownsiteBank(river: RiverPath | null): TownsiteBank | null {
   if (river === null) return null;
-  if (river.bluffSide !== null) return bankFromRiver(river.horizontal, river.bluffSide);
-  return bankFromRiver(river.horizontal, coinForRiverWithoutBluff ? 'left' : 'right');
+  return bankFromRiver(river.horizontal, river.citySide);
 }

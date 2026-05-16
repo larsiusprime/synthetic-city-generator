@@ -8,7 +8,7 @@ const KANSAS_CITY = { lat: 39.0997, lon: -94.5786 };
 describe('generateTerrain', () => {
   it('produces identical heightmaps from the same seed', () => {
     const frame = makeFrame(KANSAS_CITY);
-    const config = { cols: 64, rows: 64, cellSize: 10, includeRiver: true };
+    const config = { cols: 64, rows: 64, cellSize: 10, water: 'river' as const };
 
     const a = generateTerrain(new Prng(99), frame, config);
     const b = generateTerrain(new Prng(99), frame, config);
@@ -24,7 +24,7 @@ describe('generateTerrain', () => {
 
   it('produces different heightmaps from different seeds', () => {
     const frame = makeFrame(KANSAS_CITY);
-    const config = { cols: 64, rows: 64, cellSize: 10, includeRiver: true };
+    const config = { cols: 64, rows: 64, cellSize: 10, water: 'river' as const };
 
     const a = generateTerrain(new Prng(1), frame, config);
     const b = generateTerrain(new Prng(2), frame, config);
@@ -38,7 +38,7 @@ describe('generateTerrain', () => {
 
   it('omits river when includeRiver is false', () => {
     const frame = makeFrame(KANSAS_CITY);
-    const config = { cols: 64, rows: 64, cellSize: 10, includeRiver: false };
+    const config = { cols: 64, rows: 64, cellSize: 10, water: 'none' as const };
     const t = generateTerrain(new Prng(7), frame, config);
 
     expect(t.river).toBeNull();
@@ -51,7 +51,7 @@ describe('generateTerrain', () => {
 
   it('produces water cells when river is enabled', () => {
     const frame = makeFrame(KANSAS_CITY);
-    const config = { cols: 128, rows: 128, cellSize: 10, includeRiver: true };
+    const config = { cols: 128, rows: 128, cellSize: 10, water: 'river' as const };
     const t = generateTerrain(new Prng(7), frame, config);
 
     let waterCells = 0;
@@ -63,7 +63,7 @@ describe('generateTerrain', () => {
 
   it('elevations are finite and within reasonable bounds', () => {
     const frame = makeFrame(KANSAS_CITY);
-    const config = { cols: 64, rows: 64, cellSize: 10, includeRiver: true };
+    const config = { cols: 64, rows: 64, cellSize: 10, water: 'river' as const };
     const t = generateTerrain(new Prng(99), frame, config);
     for (let i = 0; i < t.heights.length; i++) {
       expect(Number.isFinite(t.heights[i]!)).toBe(true);

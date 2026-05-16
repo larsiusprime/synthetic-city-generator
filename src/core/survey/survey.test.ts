@@ -71,7 +71,7 @@ describe('pickDowntownAnchor', () => {
         { e: extent.maxE, n: frame.anchorN + 100 },
       ],
       horizontal: true,
-      bluffSide: null,
+      bluffSide: null, citySide: 'left',
     };
 
     const downtown = pickDowntownAnchor(extent, grid, river);
@@ -233,12 +233,11 @@ describe('seed regressions', () => {
   function runSim(seed: number) {
     const prng = new Prng(seed);
     const frame = makeFrame(KANSAS_CITY);
-    const config = { cols: 512, rows: 512, cellSize: 10, includeRiver: true };
+    const config = { cols: 512, rows: 512, cellSize: 10, water: 'river' as const };
     const terrain = generateTerrain(prng, frame, config);
     const grid = generateGhostGrid(frame, terrain.extent);
     const downtown = pickDowntownAnchor(terrain.extent, grid, terrain.river);
-    const bankCoin = prng.substream('survey.townsite_bank').bool();
-    const bank = pickTownsiteBank(terrain.river, bankCoin);
+    const bank = pickTownsiteBank(terrain.river);
     const water = {
       mask: terrain.waterMask,
       cols: config.cols,
@@ -356,7 +355,7 @@ describe('river clipping', () => {
         { e: frame.anchorE + 2000, n: frame.anchorN + 2000 },
       ],
       horizontal: true,
-      bluffSide: 'left',
+      bluffSide: 'left', citySide: 'left',
     };
     const t = buildTownsite(anchor, 'north', river);
     // The clipped townsite ring should be irregular (more than 4 vertices) because the river cuts across.
@@ -383,7 +382,7 @@ describe('river clipping', () => {
         { e: frame.anchorE + 2000, n: frame.anchorN },
       ],
       horizontal: true,
-      bluffSide: 'left',
+      bluffSide: 'left', citySide: 'left',
     };
     // With bank=north, the unclipped townsite extends north from the anchor — no blocks on the far (south) side at all.
     const t = buildTownsite(anchor, 'north', river);
@@ -404,7 +403,7 @@ describe('river clipping', () => {
         { e: frame.anchorE + 2000, n: frame.anchorN },
       ],
       horizontal: true,
-      bluffSide: 'left',
+      bluffSide: 'left', citySide: 'left',
     };
     const t = buildTownsite(anchor, 'north', river);
 

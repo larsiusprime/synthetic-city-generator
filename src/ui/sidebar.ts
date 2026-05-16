@@ -1,10 +1,11 @@
+import type { WaterKind } from '../core/terrain';
 import { CITIES, findCity, parseLatLon, type City } from './cities';
 
 export interface GenerateParams {
   seed: number;
   anchor: { lat: number; lon: number };
   anchorLabel: string;
-  includeRiver: boolean;
+  water: WaterKind;
 }
 
 export type OverlayKind = 'grid' | 'downtown' | 'townsite' | 'streets' | 'blocks';
@@ -21,7 +22,7 @@ export class Sidebar {
 
   private anchorInput!: HTMLInputElement;
   private seedInput!: HTMLInputElement;
-  private riverInput!: HTMLInputElement;
+  private waterSelect!: HTMLSelectElement;
   private generateBtn!: HTMLButtonElement;
   private exportBtn!: HTMLButtonElement;
   private statusEl!: HTMLElement;
@@ -64,10 +65,12 @@ export class Sidebar {
         </div>
 
         <div class="field">
-          <label class="check">
-            <input type="checkbox" id="river-toggle" name="river" checked />
-            <span>Include river</span>
-          </label>
+          <label for="water-select">Water</label>
+          <select id="water-select" name="water">
+            <option value="none">No water</option>
+            <option value="river" selected>Include river</option>
+            <option value="shore">Include shore</option>
+          </select>
         </div>
 
         <div class="actions">
@@ -105,7 +108,7 @@ export class Sidebar {
 
     this.anchorInput = this.q<HTMLInputElement>('#anchor-input');
     this.seedInput = this.q<HTMLInputElement>('#seed-input');
-    this.riverInput = this.q<HTMLInputElement>('#river-toggle');
+    this.waterSelect = this.q<HTMLSelectElement>('#water-select');
     this.generateBtn = this.q<HTMLButtonElement>('#generate-btn');
     this.exportBtn = this.q<HTMLButtonElement>('#export-btn');
     this.statusEl = this.q<HTMLElement>('#gen-status');
@@ -170,7 +173,7 @@ export class Sidebar {
         seed: seed >>> 0,
         anchor: anchor.coord,
         anchorLabel: anchor.label,
-        includeRiver: this.riverInput.checked,
+        water: this.waterSelect.value as WaterKind,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
