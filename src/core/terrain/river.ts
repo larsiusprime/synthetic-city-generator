@@ -16,11 +16,18 @@ export interface RiverPath {
    * set: if a bluff exists, citySide = bluffSide; otherwise it's an independent coin flip.
    */
   citySide: RiverSide;
+  /**
+   * Whether this polyline represents a river centerline (water on both sides)
+   * or a shoreline (water on the non-citySide). Drives terrain shaping and the
+   * townsite setback: river/shore-with-beach get a ~100 m corridor pulled back
+   * from the centerline; shore-with-bluff gets just a small clifftop setback.
+   */
+  kind: 'river' | 'shore';
 }
 
 const BLUFF_PROBABILITY = 0.5;
 
-export function generateRiver(prng: Prng, extent: GridExtent): RiverPath {
+export function generateRiver(prng: Prng, extent: GridExtent, kind: 'river' | 'shore'): RiverPath {
   const horizontal = prng.bool();
   const width = extent.maxE - extent.minE;
   const height = extent.maxN - extent.minN;
@@ -63,7 +70,7 @@ export function generateRiver(prng: Prng, extent: GridExtent): RiverPath {
     ? prng.bool() ? 'left' : 'right'
     : null;
   const citySide: RiverSide = bluffSide ?? (prng.bool() ? 'left' : 'right');
-  return { points, horizontal, bluffSide, citySide };
+  return { points, horizontal, bluffSide, citySide, kind };
 }
 
 export interface PolylineDistance {

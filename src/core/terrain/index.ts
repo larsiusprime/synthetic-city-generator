@@ -66,7 +66,7 @@ export function generateTerrain(rootPrng: Prng, frame: GeoFrame, config: Terrain
     }
   }
 
-  const river = water === 'none' ? null : generateRiver(riverPrng, extent);
+  const river = water === 'none' ? null : generateRiver(riverPrng, extent, water);
   const bluffHeight = river && river.bluffSide !== null ? bluffPrng.range(15, 30) : 0;
 
   if (river !== null && water === 'river') {
@@ -101,10 +101,14 @@ export function generateTerrain(rootPrng: Prng, frame: GeoFrame, config: Terrain
     }
   } else if (river !== null && water === 'shore') {
     // Shore: same polyline as river generation. The opposite of citySide is
-    // entirely flooded (lake or ocean); the city side stays dry. If a bluff
-    // happens to be present, it rises near the waterline; otherwise it's a
-    // flat coast.
+    // entirely flooded (lake or ocean); the city side either:
+    //   - has a bluff (cliff against the water) — heights rise near the waterline, or
+    //   - has no bluff (beach/sandy shore) — heights are eased down toward
+    //     RIVER_BED near the waterline, exactly like the river-valley profile,
+    //     producing a strip of wet beach cells where the eased height crosses
+    //     SEA_LEVEL.
     const { citySide } = river;
+    const cityHasBluff = river.bluffSide === citySide;
     for (let row = 0; row < rows; row++) {
       const n = extent.minN + (row + 0.5) * cellSize;
       for (let col = 0; col < cols; col++) {
@@ -115,10 +119,21 @@ export function generateTerrain(rootPrng: Prng, frame: GeoFrame, config: Terrain
         if (cellSide !== citySide) {
           heights[idx] = SHORE_WATER_HEIGHT;
           waterMask[idx] = 1;
-        } else if (river.bluffSide === citySide && dist < BLUFF_RANGE) {
+          continue;
+        }
+        if (cityHasBluff && dist < BLUFF_RANGE) {
           const d = dist / BLUFF_RANGE;
           const falloff = Math.sqrt(Math.max(0, 1 - d));
           heights[idx] = heights[idx]! + bluffHeight * falloff;
+          continue;
+        }
+        if (!cityHasBluff && dist < VALLEY_HALF_WIDTH) {
+          const t = dist / VALLEY_HALF_WIDTH;
+          const eased = t * t * (3 - 2 * t);
+          const current = heights[idx]!;
+          const target = RIVER_BED + (current - RIVER_BED) * eased;
+          if (target < current) heights[idx] = target;
+          if (heights[idx]! < SEA_LEVEL) waterMask[idx] = 1;
         }
       }
     }

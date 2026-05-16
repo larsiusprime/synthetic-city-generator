@@ -43,6 +43,8 @@ const MIN_LAND_FRACTION_FULL = 0.75;
 const MIN_DIMENSION_RATIO = 0.35;
 /** Surviving block area fraction required for a block to be eligible for public-square / school. */
 const BLOCK_FULLNESS_THRESHOLD = 0.8;
+/** Minimum block ring area (as fraction of full inset block area) for a block to host a church. */
+const MIN_BLOCK_AREA_FOR_CHURCH = 0.75;
 
 type AlleyAxis = 'east-west' | 'north-south';
 
@@ -238,7 +240,7 @@ export function buildParcels(
   // ── Phase 4: tag 1–2 church lots in commercial blocks adjacent to the square.
   // Only parcels with landFraction >= MIN_LAND_FRACTION_FULL are eligible
   // (we don't want to put a church on a sliver of a parcel).
-  tagChurchLots(parcels, survivors, parcelLandFraction);
+  tagChurchLots(parcels, survivors, parcelLandFraction, fullArea);
 
   const outBlocks: Block[] = survivors.map((cb) => ({
     col: cb.col,
@@ -293,6 +295,7 @@ function tagChurchLots(
   parcels: Parcel[],
   survivors: ReadonlyArray<{ col: number; row: number; ring: UtmCoord[]; kind: BlockKind }>,
   parcelLandFraction: ReadonlyMap<number, number>,
+  fullBlockArea: number,
 ): void {
   const square = survivors.find((b) => b.kind === 'public-square');
   if (!square) return;
@@ -302,10 +305,20 @@ function tagChurchLots(
       b.kind === 'commercial' &&
       Math.abs(b.col - square.col) + Math.abs(b.row - square.row) === 1,
   );
+
+  // Only place churches in blocks that retain >=75% of their full inset block
+  // area. Ring length isn't a reliable proxy for "clipped" — the townsite cut
+  // can land exactly on a block edge and leave a 4-vertex shape that's tiny
+  // (e.g., a triangle clipped to a quad). Area is the honest measure.
+  const isFullEnough = (b: { ring: UtmCoord[] }) =>
+    ringArea(b.ring) >= MIN_BLOCK_AREA_FOR_CHURCH * fullBlockArea;
+  const ordered = adjacent.filter(isFullEnough);
+
   let tagged = 0;
-  for (const block of adjacent) {
+  for (const block of ordered) {
     if (tagged >= MAX_CHURCH_LOTS) break;
     let bestIdx = -1;
+    let bestFrac = -Infinity;
     let bestDist = Infinity;
     for (let i = 0; i < parcels.length; i++) {
       const p = parcels[i]!;
@@ -315,7 +328,12 @@ function tagChurchLots(
       if (frac < MIN_LAND_FRACTION_FULL) continue;
       const c = ringCentroid(p.ring);
       const d = (c.e - squareCenter.e) ** 2 + (c.n - squareCenter.n) ** 2;
-      if (d < bestDist) {
+      // Sort key: prefer higher landFraction (further from water within the
+      // block), break ties by proximity to the public square.
+      const better = frac > bestFrac + 1e-6
+        || (Math.abs(frac - bestFrac) < 1e-6 && d < bestDist);
+      if (better) {
+        bestFrac = frac;
         bestDist = d;
         bestIdx = i;
       }

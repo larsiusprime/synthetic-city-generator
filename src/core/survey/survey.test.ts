@@ -73,7 +73,7 @@ describe('pickDowntownAnchor', () => {
         { e: extent.maxE, n: frame.anchorN + 100 },
       ],
       horizontal: true,
-      bluffSide: null, citySide: 'left',
+      bluffSide: null, citySide: 'left', kind: 'river',
     };
 
     const downtown = pickDowntownAnchor(extent, grid, river);
@@ -350,7 +350,7 @@ describe('river clipping', () => {
         { e: frame.anchorE + 2000, n: frame.anchorN + 2000 },
       ],
       horizontal: true,
-      bluffSide: 'left', citySide: 'left',
+      bluffSide: 'left', citySide: 'left', kind: 'river',
     };
     const t = buildTownsite(anchor, 'north', river);
     // The clipped townsite ring should be irregular (more than 4 vertices) because the river cuts across.
@@ -377,7 +377,7 @@ describe('river clipping', () => {
         { e: frame.anchorE + 2000, n: frame.anchorN },
       ],
       horizontal: true,
-      bluffSide: 'left', citySide: 'left',
+      bluffSide: 'left', citySide: 'left', kind: 'river',
     };
     // With bank=north, the unclipped townsite extends north from the anchor — no blocks on the far (south) side at all.
     const t = buildTownsite(anchor, 'north', river);
@@ -398,7 +398,7 @@ describe('river clipping', () => {
         { e: frame.anchorE + 2000, n: frame.anchorN },
       ],
       horizontal: true,
-      bluffSide: 'left', citySide: 'left',
+      bluffSide: 'left', citySide: 'left', kind: 'river',
     };
     const t = buildTownsite(anchor, 'north', river);
 
@@ -670,4 +670,48 @@ describe('parcel regression: seed 258241763', () => {
       expect(c.areaSqM).toBeGreaterThan(0.75 * COMMERCIAL_LOT_WIDTH_METERS * 30);
     }
   });
+});
+
+describe('church placement: seed 3474494536', () => {
+  // This seed previously placed a church in a tiny clipped block adjacent to
+  // the river. Verify that every church parcel lives in a block whose ring is
+  // a full unclipped rectangle (i.e., not touching the townsite/water boundary).
+  const SEED = 3474494536;
+
+  for (const water of ['river', 'shore'] as const) {
+    it(`water=${water}: no church parcel is in a clipped block`, () => {
+      const prng = new Prng(SEED);
+      const frame = makeFrame(KANSAS_CITY);
+      const config = { cols: 512, rows: 512, cellSize: 10, water };
+      const terrain = generateTerrain(prng, frame, config);
+      const internalGrid = generateGhostGrid(frame, terrain.extent);
+      const downtown = pickDowntownAnchor(terrain.extent, internalGrid, terrain.river);
+      const bank = pickTownsiteBank(terrain.river);
+      const waterField = {
+        mask: terrain.waterMask,
+        cols: config.cols,
+        rows: config.rows,
+        extent: terrain.extent,
+      };
+      const townsite = buildTownsite(downtown, bank, terrain.river, waterField);
+      prng.substream('survey.street_naming').bool();
+      const streets = buildStreets(townsite, waterField, true);
+      const rawBlocks = buildBlocks(townsite);
+      const founder = pickFounder(prng.substream('survey.founder'));
+      const { parcels, blocks } = buildParcels(townsite, rawBlocks, streets, terrain.river, downtown, founder);
+
+      const churches = parcels.filter((p) => p.use === 'church');
+      // Block size budget: townsite side / 8 divisions − street ROW.
+      const blockSide = TOWNSITE_SIDE_METERS / STREET_GRID_DIVISIONS - STREET_WIDTH_METERS;
+      const fullBlockArea = blockSide * blockSide;
+      for (const c of churches) {
+        const block = blocks.find((b) => b.col === c.blockCol && b.row === c.blockRow)!;
+        const blockArea = polygonArea(block.ring);
+        // Church-eligible blocks must retain at least 75% of full inset area
+        // (ring vertex count alone is unreliable — a clip can land on an edge
+        // and leave 4 vertices despite slicing off most of the block).
+        expect(blockArea / fullBlockArea).toBeGreaterThanOrEqual(0.75);
+      }
+    });
+  }
 });

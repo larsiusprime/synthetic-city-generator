@@ -49,14 +49,22 @@ const POLYLINE_AREA_FALLBACK_RATIO = 1.15;
 const RASTER_SIMPLIFY_EPSILON = 6;
 
 /**
- * Half-width of the river corridor (meters) we subtract from the townsite
- * rectangle. The actual wet portion of a river is ~72 m from centerline
- * (where the eased valley profile drops below SEA_LEVEL); 100 m gives a
- * small inland safety margin so the townsite ring never lies on water.
- * This also reduces how often we need the raster fallback below — the
- * corridor handles meanders that the bare centerline used to miss.
+ * Half-width of the corridor (meters) we subtract from the townsite rectangle
+ * for river mode and shore-with-beach. The actual wet portion of a river is
+ * ~72 m from centerline (where the eased valley profile drops below SEA_LEVEL);
+ * 100 m gives a small inland safety margin so the townsite ring never lies
+ * on water. This also reduces how often we need the raster fallback below —
+ * the corridor handles meanders that the bare centerline used to miss.
  */
 const RIVER_HALF_WIDTH = 100;
+
+/**
+ * Setback (meters) from a shore-with-bluff (cliff) edge. The water starts
+ * right at the centerline (no beach), so the township should sit close to
+ * the cliff — but with a modest realistic clifftop setback for safety /
+ * future erosion. Typical modern clifftop setbacks are 25–50 ft.
+ */
+const CLIFF_SETBACK = 10;
 
 export function buildTownsite(
   downtown: DowntownAnchor,
@@ -110,11 +118,19 @@ export function buildTownsite(
     minN: center.n - half,
     maxN: center.n + half,
   };
-  // Subtract a buffered river corridor (centerline ± RIVER_HALF_WIDTH) from
-  // the rectangle. Compared to clipping by the bare centerline this:
+  // Subtract a buffered corridor (centerline ± halfWidth) from the rectangle.
+  // Compared to clipping by the bare centerline this:
   //   (1) prevents the township ring from hanging over water on the river side, and
   //   (2) cleanly removes meander lobes that the centerline used to miss.
-  const corridor = bufferPolyline(river.points, RIVER_HALF_WIDTH);
+  //
+  // halfWidth varies by water type:
+  //   - shore + bluff (cliff): tiny setback — the water starts at the centerline
+  //     and the citySide is dry cliff, so we just need a small realistic setback.
+  //   - everything else (river, shore-with-beach): RIVER_HALF_WIDTH (~100 m)
+  //     to clear the actual wet area on the citySide.
+  const isCliff = river.kind === 'shore' && river.bluffSide === river.citySide;
+  const halfWidth = isCliff ? CLIFF_SETBACK : RIVER_HALF_WIDTH;
+  const corridor = bufferPolyline(river.points, halfWidth);
   const pieces = differencePolygons(rectRing, corridor);
   let candidate: UtmCoord[];
   if (pieces.length === 0) {
