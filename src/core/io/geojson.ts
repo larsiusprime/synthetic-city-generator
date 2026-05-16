@@ -1,6 +1,6 @@
 import { utmToLonLat, type GeoFrame, type GridExtent, type UtmCoord } from '../geo';
 import type { ContourLevel } from '../terrain/vectorize';
-import type { Block, DowntownAnchor, GhostGrid, Street, StreetGrid, Townsite } from '../survey';
+import type { Block, DowntownAnchor, GhostGrid, Parcel, Street, StreetGrid, Townsite } from '../survey';
 
 type Position = readonly [number, number];
 
@@ -137,6 +137,30 @@ export function streetGridToGeoJson(frame: GeoFrame, grid: StreetGrid): FeatureC
   return streetsToGeoJson(frame, grid.streets);
 }
 
+export function parcelsToGeoJson(frame: GeoFrame, parcels: readonly Parcel[]): FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: parcels.map((p) => ({
+      type: 'Feature',
+      geometry: {
+        type: 'Polygon',
+        coordinates: [utmRingToLonLat(frame, [...p.ring, p.ring[0]!])],
+      },
+      properties: {
+        kind: 'parcel',
+        id: p.id,
+        block_col: p.blockCol,
+        block_row: p.blockRow,
+        lot_number: p.lotNumber,
+        use: p.use,
+        area_sqm: Math.round(p.areaSqM * 100) / 100,
+        frontage_street: p.frontageStreet,
+        owner_id: p.ownerId,
+      },
+    })),
+  };
+}
+
 export function blocksToGeoJson(frame: GeoFrame, blocks: readonly Block[]): FeatureCollection {
   return {
     type: 'FeatureCollection',
@@ -148,9 +172,10 @@ export function blocksToGeoJson(frame: GeoFrame, blocks: readonly Block[]): Feat
       },
       properties: {
         kind: 'block',
+        block_kind: b.kind,
         col: b.col,
         row: b.row,
-        public_square: b.publicSquare,
+        public_square: b.kind === 'public-square',
       },
     })),
   };

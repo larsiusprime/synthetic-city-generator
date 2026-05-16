@@ -22,7 +22,12 @@ export interface StreetGrid {
   streets: Street[];
 }
 
-const DIVISIONS = 4;
+const DIVISIONS = 8;
+/** Right-of-way width of a single street in meters (~60 ft, the standard
+ * for residential streets in 19th-century PLS-platted Midwestern towns).
+ * Block rectangles are inset by half this on every side to reserve the
+ * street ROW from the platted block. */
+const STREET_WIDTH_METERS = 18.29;
 
 interface Trunk {
   /** Index of the trunk on the streets (E-W) axis, or null if this axis has no trunk. */
@@ -175,4 +180,4 @@ function keepMainComponent(streets: Street[]): Street[] {
   return streets.filter((_, i) => find(i) === mainRoot);
 }
 
-export { DIVISIONS as STREET_GRID_DIVISIONS };
+export { DIVISIONS as STREET_GRID_DIVISIONS, STREET_WIDTH_METERS };

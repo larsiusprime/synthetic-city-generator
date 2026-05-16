@@ -6,6 +6,7 @@ import {
   blocksToGeoJson,
   downtownToGeoJson,
   ghostGridToGeoJson,
+  parcelsToGeoJson,
   streetGridToGeoJson,
   townsiteToGeoJson,
 } from './core/io/geojson';
@@ -28,6 +29,9 @@ const STREETS_LAYER_ID = 'hjemby-streets';
 const BLOCKS_SOURCE_ID = 'hjemby-blocks';
 const BLOCKS_FILL_LAYER_ID = 'hjemby-blocks-fill';
 const BLOCKS_LINE_LAYER_ID = 'hjemby-blocks-line';
+const PARCELS_SOURCE_ID = 'hjemby-parcels';
+const PARCELS_FILL_LAYER_ID = 'hjemby-parcels-fill';
+const PARCELS_LINE_LAYER_ID = 'hjemby-parcels-line';
 const DOWNTOWN_SOURCE_ID = 'hjemby-downtown';
 const DOWNTOWN_LAYER_ID = 'hjemby-downtown';
 
@@ -246,6 +250,46 @@ function installOverlays(response: GenerateResponse): void {
     });
   }
 
+  const parcelsFc = parcelsToGeoJson(frame, response.parcels);
+  const parcelsSource = map.getSource(PARCELS_SOURCE_ID);
+  if (parcelsSource && parcelsSource.type === 'geojson') {
+    (parcelsSource as maplibregl.GeoJSONSource).setData(parcelsFc as never);
+  } else {
+    map.addSource(PARCELS_SOURCE_ID, { type: 'geojson', data: parcelsFc as never });
+  }
+  if (!map.getLayer(PARCELS_FILL_LAYER_ID)) {
+    map.addLayer({
+      id: PARCELS_FILL_LAYER_ID,
+      type: 'fill',
+      source: PARCELS_SOURCE_ID,
+      paint: {
+        'fill-color': [
+          'match',
+          ['get', 'use'],
+          'residential', '#7a9b6b',
+          'commercial', '#b88a4a',
+          'church', '#9a5fb5',
+          'school', '#c95757',
+          'public-square', '#5e7e4a',
+          '#888',
+        ],
+        'fill-opacity': 0.55,
+      },
+    });
+  }
+  if (!map.getLayer(PARCELS_LINE_LAYER_ID)) {
+    map.addLayer({
+      id: PARCELS_LINE_LAYER_ID,
+      type: 'line',
+      source: PARCELS_SOURCE_ID,
+      paint: {
+        'line-color': '#2a2218',
+        'line-width': 0.4,
+        'line-opacity': 0.7,
+      },
+    });
+  }
+
   const streetsFc = streetGridToGeoJson(frame, response.streetGrid);
   const streetsSource = map.getSource(STREETS_SOURCE_ID);
   if (streetsSource && streetsSource.type === 'geojson') {
@@ -288,7 +332,7 @@ function installOverlays(response: GenerateResponse): void {
 }
 
 export function setOverlayVisibility(
-  kind: 'grid' | 'downtown' | 'townsite' | 'streets' | 'blocks',
+  kind: 'grid' | 'downtown' | 'townsite' | 'streets' | 'blocks' | 'parcels',
   visible: boolean,
 ): void {
   const value = visible ? 'visible' : 'none';
@@ -301,7 +345,9 @@ export function setOverlayVisibility(
           ? [STREETS_LAYER_ID]
           : kind === 'blocks'
             ? [BLOCKS_FILL_LAYER_ID, BLOCKS_LINE_LAYER_ID]
-            : [DOWNTOWN_LAYER_ID];
+            : kind === 'parcels'
+              ? [PARCELS_FILL_LAYER_ID, PARCELS_LINE_LAYER_ID]
+              : [DOWNTOWN_LAYER_ID];
   for (const id of layers) {
     if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', value);
   }

@@ -78,8 +78,9 @@ contractual.
   anchor.
 
 - **Stage 4 — Street grid + blocks + public square.** The townsite is
-  subdivided by a 4×4 cardinal street grid: 5 streets (E-W) and 5 avenues
-  (N-S), enclosing 16 blocks of ~200 m. Trunk lines retain their iconic
+  subdivided by an 8×8 cardinal street grid (originally 4×4; adjusted in
+  Stage 5 to keep lot depths realistic): 9 streets (E-W) and 9 avenues
+  (N-S), enclosing 64 blocks of ~100 m. Trunk lines retain their iconic
   names from Stage 3 ("Front Street" along the riverfront, "Main Street"
   / "Main Avenue" inland, "First Avenue" for riverless); every other line
   takes its name from a per-seed coin flip — one axis numbered (1st, 2nd,
@@ -90,12 +91,38 @@ contractual.
   `blocks.geojson`. The old `streets.geojson` now contains all 10 streets
   rather than the two trunks. The sidebar gained a "Blocks" toggle.
 
+- **Stage 5 — Parcels (t=0 platting).** Blocks are subdivided into
+  individual lots, the founding act of the town. While prototyping
+  parcels we discovered that the original 4×4 street grid made blocks
+  too deep (~200 m), producing 50 ft × 330 ft lots — about 2× the depth
+  of real Midwestern plats — so the grid was tightened to 8×8 (~100 m
+  blocks, ~50 m-deep lots). Block kinds are
+  classified up-front: the **public square** is the block nearest
+  downtown that retains ≥80% of a full block (so we don't pick a
+  river-clipped sliver); a **school** block is picked at Chebyshev
+  distance ≥ 2 from the square; blocks within Chebyshev ≤ 1 of the
+  square become **commercial**; everything else is **residential**.
+  Lots are arranged in two rows back-to-back with a ~5 m mid-block
+  alley parallel to the river (riverless cities default to east-west);
+  commercial lots are ~25 ft (7.62 m) wide, residential lots ~50 ft
+  (15.24 m) wide. Reserved blocks (square, school) stay as a single
+  parcel. 1–2 corner lots of commercial blocks adjacent to the public
+  square are tagged as **church** (placed at the parcel nearest the
+  square's centroid). A seeded **founder** name is drawn from a small
+  surname/suffix pool ("Ashcroft Town Co.", "Norton & Sons", …); the
+  founder owns every saleable parcel at t=0. New module:
+  `src/core/survey/parcels.ts` + `src/core/survey/founder.ts`. New
+  export: `parcels.geojson` with `use`, `lot_number`, `area_sqm`,
+  `frontage_street`, `owner_id`. The sidebar gained a "Parcels" toggle;
+  the map fills parcels by use (residential/commercial/church/school/
+  public-square get distinct colors).
+
 ### Current focus
 
-**Stage 5 — TBD.** Natural candidates: subdivide blocks into parcels;
-add a "founding year" + simple time axis; extend the street grid beyond
-the townsite into adjacent sections; or differentiate block kinds
-(commercial vs residential) as a precursor to land use.
+**Stage 6 — TBD.** Natural candidates: a "founding year" + simple
+annual tick loop; first buildings on parcels; extend the street grid
+beyond the townsite into adjacent sections; or seed the first non-
+founder owners via initial sales.
 
 ### Working agreement
 

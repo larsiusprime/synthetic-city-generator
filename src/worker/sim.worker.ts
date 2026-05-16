@@ -6,11 +6,13 @@ import { generateTerrain } from '../core/terrain';
 import { extractContours, extractWaterPolygons } from '../core/terrain/vectorize';
 import {
   buildBlocks,
+  buildParcels,
   buildStreets,
   buildTownsite,
   computeGridOrigin,
   generateGhostGrid,
   pickDowntownAnchor,
+  pickFounder,
   pickTownsiteBank,
 } from '../core/survey';
 import type { GenerateRequest, GenerateResponse, WorkerOutbound } from './protocol';
@@ -69,7 +71,18 @@ function run(req: GenerateRequest): GenerateResponse {
   const townsite = buildTownsite(downtown, bank, terrain.river, water);
   const namingCoin = prng.substream('survey.street_naming').bool();
   const streetGrid = buildStreets(townsite, water, namingCoin);
-  const blocks = buildBlocks(townsite, downtown);
+  const rawBlocks = buildBlocks(townsite);
+  const founder = pickFounder(prng.substream('survey.founder'));
+  const plat = buildParcels(
+    townsite,
+    rawBlocks,
+    streetGrid,
+    terrain.river,
+    downtown,
+    founder,
+  );
+  const blocks = plat.blocks;
+  const parcels = plat.parcels;
 
   // Re-generate the displayed grid with origin aligned to the downtown anchor so
   // the townsite's water-facing edge lines up with a section line.
@@ -104,5 +117,7 @@ function run(req: GenerateRequest): GenerateResponse {
     townsite,
     streetGrid,
     blocks,
+    parcels,
+    founder,
   };
 }

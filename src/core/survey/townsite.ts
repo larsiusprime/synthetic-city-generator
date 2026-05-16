@@ -3,8 +3,8 @@ import type { RiverPath } from '../terrain';
 import { vectorizeIsoline } from '../terrain/vectorize';
 import {
   buildBankConnectedMask,
-  clipPolygonByPolyline,
   countMask,
+  pointInPolygon,
   polygonArea,
   simplifyRing,
   tidyTownshipPolygon,
@@ -12,6 +12,7 @@ import {
 } from './clip';
 import type { DowntownAnchor } from './downtown';
 import { SECTION_METERS } from './grid';
+import { bufferPolyline, differencePolygons } from './poly-ops';
 
 /** Side length of a quarter-section townsite, in meters (= ½ mile). */
 export const TOWNSITE_SIDE_METERS = SECTION_METERS / 2;
@@ -46,6 +47,16 @@ const POLYLINE_AREA_FALLBACK_RATIO = 1.15;
 
 /** Douglas-Peucker tolerance (meters) for cleaning up stairstep noise in the raster fallback ring. */
 const RASTER_SIMPLIFY_EPSILON = 6;
+
+/**
+ * Half-width of the river corridor (meters) we subtract from the townsite
+ * rectangle. The actual wet portion of a river is ~72 m from centerline
+ * (where the eased valley profile drops below SEA_LEVEL); 100 m gives a
+ * small inland safety margin so the townsite ring never lies on water.
+ * This also reduces how often we need the raster fallback below — the
+ * corridor handles meanders that the bare centerline used to miss.
+ */
+const RIVER_HALF_WIDTH = 100;
 
 export function buildTownsite(
   downtown: DowntownAnchor,
@@ -99,8 +110,19 @@ export function buildTownsite(
     minN: center.n - half,
     maxN: center.n + half,
   };
-  const clipped = clipPolygonByPolyline(rectRing, river.points, seed);
-  const candidate = clipped ?? rectRing;
+  // Subtract a buffered river corridor (centerline ± RIVER_HALF_WIDTH) from
+  // the rectangle. Compared to clipping by the bare centerline this:
+  //   (1) prevents the township ring from hanging over water on the river side, and
+  //   (2) cleanly removes meander lobes that the centerline used to miss.
+  const corridor = bufferPolyline(river.points, RIVER_HALF_WIDTH);
+  const pieces = differencePolygons(rectRing, corridor);
+  let candidate: UtmCoord[];
+  if (pieces.length === 0) {
+    candidate = rectRing;
+  } else {
+    const seedPiece = pieces.find((p) => pointInPolygon(seed, p));
+    candidate = seedPiece ?? pieces[0]!;
+  }
   let ring = tidyTownshipPolygon(candidate, rect, seed);
   if (ring.length < 3) ring = rectRing;
 

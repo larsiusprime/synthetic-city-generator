@@ -1,6 +1,6 @@
 import type { LonLat, UtmCoord } from '../core/geo';
 import type { TerrainConfig, RiverSide } from '../core/terrain';
-import type { Block, DowntownAnchor, GhostGrid, StreetGrid, Townsite } from '../core/survey';
+import type { Block, DowntownAnchor, Founder, GhostGrid, Parcel, StreetGrid, Townsite } from '../core/survey';
 
 export interface GenerateRequest {
   id: number;
@@ -52,6 +52,8 @@ export interface GenerateResponse {
   townsite: Townsite;
   streetGrid: StreetGrid;
   blocks: Block[];
+  parcels: Parcel[];
+  founder: Founder;
 }
 
 export interface ErrorResponse {

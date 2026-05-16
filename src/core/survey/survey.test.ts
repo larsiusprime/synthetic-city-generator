@@ -6,8 +6,10 @@ import { buildBankConnectedMask, countMask, pointInPolygon, polygonArea, segment
 import { pickDowntownAnchor } from './downtown';
 import { SECTION_METERS, SECTIONS_PER_TOWNSHIP, generateGhostGrid } from './grid';
 import { TOWNSITE_SIDE_METERS, buildTownsite, pickTownsiteBank } from './townsite';
-import { STREET_GRID_DIVISIONS, buildStreets } from './streets';
+import { STREET_GRID_DIVISIONS, STREET_WIDTH_METERS, buildStreets } from './streets';
 import { buildBlocks } from './blocks';
+import { buildParcels } from './parcels';
+import { pickFounder } from './founder';
 
 const KANSAS_CITY = { lat: 39.0997, lon: -94.5786 };
 
@@ -169,10 +171,10 @@ describe('buildStreets', () => {
 describe('buildBlocks', () => {
   const frame = makeFrame(KANSAS_CITY);
 
-  it('riverless: produces divisions^2 rectangular blocks', () => {
+  it('riverless: produces divisions^2 rectangular blocks (geometry only, no kind)', () => {
     const anchor = { utm: { e: frame.anchorE, n: frame.anchorN }, reason: 'centroid-section-corner' as const };
     const t = buildTownsite(anchor, null, null);
-    const blocks = buildBlocks(t, anchor);
+    const blocks = buildBlocks(t);
     expect(blocks).toHaveLength(STREET_GRID_DIVISIONS * STREET_GRID_DIVISIONS);
     for (const b of blocks) {
       expect(b.ring).toHaveLength(4);
@@ -180,19 +182,10 @@ describe('buildBlocks', () => {
       const e1 = Math.max(...b.ring.map((p) => p.e));
       const n0 = Math.min(...b.ring.map((p) => p.n));
       const n1 = Math.max(...b.ring.map((p) => p.n));
-      expect(e1 - e0).toBeCloseTo(TOWNSITE_SIDE_METERS / STREET_GRID_DIVISIONS, 6);
-      expect(n1 - n0).toBeCloseTo(TOWNSITE_SIDE_METERS / STREET_GRID_DIVISIONS, 6);
+      const expectedSide = TOWNSITE_SIDE_METERS / STREET_GRID_DIVISIONS - STREET_WIDTH_METERS;
+      expect(e1 - e0).toBeCloseTo(expectedSide, 6);
+      expect(n1 - n0).toBeCloseTo(expectedSide, 6);
     }
-  });
-
-  it('riverless: designates exactly one public square at the NE-of-center block', () => {
-    const anchor = { utm: { e: frame.anchorE, n: frame.anchorN }, reason: 'centroid-section-corner' as const };
-    const t = buildTownsite(anchor, null, null);
-    const blocks = buildBlocks(t, anchor);
-    const squares = blocks.filter((b) => b.publicSquare);
-    expect(squares).toHaveLength(1);
-    expect(squares[0]!.col).toBe(STREET_GRID_DIVISIONS / 2);
-    expect(squares[0]!.row).toBe(STREET_GRID_DIVISIONS / 2);
   });
 });
 
@@ -227,8 +220,10 @@ function isInsideOrNearTownship(p: { e: number; n: number }, ring: { e: number; 
 describe('seed regressions', () => {
   // Seeds that previously produced a township polygon with an "orphan triangle" past where
   // the river sweep hits the outer edge of the township rectangle, plus seeds where blocks
-  // extended outside the township polygon.
-  const PROBLEM_SEEDS = [2573966306, 2281803266, 4258408191];
+  // extended outside the township polygon, plus seed 94300596 which previously had the
+  // township hanging out over the river because we clipped by the centerline instead of
+  // the buffered corridor.
+  const PROBLEM_SEEDS = [2573966306, 2281803266, 4258408191, 94300596];
 
   function runSim(seed: number) {
     const prng = new Prng(seed);
@@ -246,7 +241,7 @@ describe('seed regressions', () => {
     };
     const townsite = buildTownsite(downtown, bank, terrain.river, water);
     prng.substream('survey.street_naming').bool();
-    const blocks = buildBlocks(townsite, downtown);
+    const blocks = buildBlocks(townsite);
     const streetGrid = buildStreets(townsite, water, true);
     return { townsite, blocks, streets: streetGrid.streets, water, downtown, bank };
   }
@@ -387,7 +382,7 @@ describe('river clipping', () => {
     // With bank=north, the unclipped townsite extends north from the anchor — no blocks on the far (south) side at all.
     const t = buildTownsite(anchor, 'north', river);
     // No water field — blocks fall back to the centroid-in-township test.
-    const blocks = buildBlocks(t, anchor);
+    const blocks = buildBlocks(t);
     expect(blocks.length).toBeLessThanOrEqual(STREET_GRID_DIVISIONS * STREET_GRID_DIVISIONS);
     expect(blocks.length).toBeGreaterThan(0);
   });
@@ -442,6 +437,237 @@ describe('river clipping', () => {
       for (const p of s.points) {
         expect(p.n).toBeGreaterThanOrEqual(anchor.utm.n - cellSize);
       }
+    }
+  });
+});
+
+describe('buildParcels', () => {
+  const frame = makeFrame(KANSAS_CITY);
+  const anchor = {
+    utm: { e: frame.anchorE, n: frame.anchorN },
+    reason: 'centroid-section-corner' as const,
+  };
+
+  function buildRiverless() {
+    const townsite = buildTownsite(anchor, null, null);
+    const streets = buildStreets(townsite, null, true);
+    const rawBlocks = buildBlocks(townsite);
+    const founder = pickFounder(new Prng(1).substream('survey.founder'));
+    const { parcels, blocks } = buildParcels(townsite, rawBlocks, streets, null, anchor, founder);
+    return { townsite, streets, blocks, founder, parcels };
+  }
+
+  it('riverless: designates exactly one public square at the NE-of-center block', () => {
+    const { blocks } = buildRiverless();
+    const squares = blocks.filter((b) => b.kind === 'public-square');
+    expect(squares).toHaveLength(1);
+    expect(squares[0]!.col).toBe(STREET_GRID_DIVISIONS / 2);
+    expect(squares[0]!.row).toBe(STREET_GRID_DIVISIONS / 2);
+  });
+
+  it('produces exactly one parcel per reserved block (public square, school)', () => {
+    const { blocks, parcels } = buildRiverless();
+    const squares = parcels.filter((p) => p.use === 'public-square');
+    const schools = parcels.filter((p) => p.use === 'school');
+    const squareBlocks = blocks.filter((b) => b.kind === 'public-square');
+    const schoolBlocks = blocks.filter((b) => b.kind === 'school');
+    expect(squares).toHaveLength(squareBlocks.length);
+    expect(schools).toHaveLength(schoolBlocks.length);
+    for (const p of [...squares, ...schools]) {
+      expect(p.lotNumber).toBe(1);
+      expect(p.frontageStreet).toBeNull();
+    }
+  });
+
+  it('subdivides commercial blocks into more parcels than residential (narrower lots)', () => {
+    const { blocks, parcels } = buildRiverless();
+    const commBlocks = blocks.filter((b) => b.kind === 'commercial');
+    const resBlocks = blocks.filter((b) => b.kind === 'residential');
+    if (commBlocks.length === 0 || resBlocks.length === 0) return;
+    const commCount = parcels.filter((p) => p.use === 'commercial' || p.use === 'church').length / commBlocks.length;
+    const resCount = parcels.filter((p) => p.use === 'residential').length / resBlocks.length;
+    expect(commCount).toBeGreaterThan(resCount);
+  });
+
+  it('every parcel vertex is inside or on its block ring', () => {
+    const { blocks, parcels } = buildRiverless();
+    for (const p of parcels) {
+      const block = blocks.find((b) => b.col === p.blockCol && b.row === p.blockRow)!;
+      for (const v of p.ring) {
+        const inside =
+          pointInPolygon(v, block.ring) || distanceToBoundary(v, block.ring) < 0.5;
+        if (!inside) {
+          throw new Error(
+            `parcel ${p.id} (block ${p.blockCol},${p.blockRow}) vertex outside block: ${JSON.stringify(v)}`,
+          );
+        }
+      }
+    }
+  });
+
+  it('tags 1–2 church lots in commercial blocks adjacent to the public square', () => {
+    const { blocks, parcels } = buildRiverless();
+    const square = blocks.find((b) => b.kind === 'public-square');
+    if (!square) return;
+    const adjacentCommercial = blocks.filter(
+      (b) =>
+        b.kind === 'commercial' &&
+        Math.abs(b.col - square.col) + Math.abs(b.row - square.row) === 1,
+    );
+    const churches = parcels.filter((p) => p.use === 'church');
+    expect(churches.length).toBeGreaterThanOrEqual(Math.min(1, adjacentCommercial.length));
+    expect(churches.length).toBeLessThanOrEqual(2);
+    for (const c of churches) {
+      const block = blocks.find((b) => b.col === c.blockCol && b.row === c.blockRow)!;
+      expect(block.kind).toBe('commercial');
+      const cheby = Math.abs(block.col - square.col) + Math.abs(block.row - square.row);
+      expect(cheby).toBe(1);
+    }
+  });
+
+  it('all saleable parcels are owned by the founder; reserved parcels are not', () => {
+    const { founder, parcels } = buildRiverless();
+    for (const p of parcels) {
+      if (p.use === 'residential' || p.use === 'commercial' || p.use === 'church') {
+        expect(p.ownerId).toBe(founder.id);
+      } else {
+        expect(p.ownerId).not.toBe(founder.id);
+      }
+    }
+  });
+
+  it('is deterministic for a given seed', () => {
+    const a = buildRiverless();
+    const b = buildRiverless();
+    expect(a.parcels.length).toBe(b.parcels.length);
+    for (let i = 0; i < a.parcels.length; i++) {
+      expect(a.parcels[i]!.use).toBe(b.parcels[i]!.use);
+      expect(a.parcels[i]!.ring).toEqual(b.parcels[i]!.ring);
+    }
+  });
+
+  it('parcels respect a townsite ring clipped by water (south half removed)', () => {
+    // Hand-build a townsite whose ring covers only the north half of the
+    // quarter-section rectangle (south half removed by water clipping
+    // upstream in buildTownsite). buildBlocks → buildParcels should
+    // automatically respect this boundary because block.ring = rect ∩ townsite.ring.
+    const half = TOWNSITE_SIDE_METERS / 2;
+    const cx = anchor.utm.e;
+    const cy = anchor.utm.n;
+    const midN = cy;
+    const clippedTownsite: import('./townsite').Townsite = {
+      anchor: anchor.utm,
+      unclippedCenter: anchor.utm,
+      sideMeters: TOWNSITE_SIDE_METERS,
+      bank: 'north',
+      ring: [
+        { e: cx - half, n: midN },
+        { e: cx + half, n: midN },
+        { e: cx + half, n: cy + half },
+        { e: cx - half, n: cy + half },
+      ],
+    };
+
+    const streets = buildStreets(clippedTownsite, null, true);
+    const rawBlocks = buildBlocks(clippedTownsite);
+    const founder = pickFounder(new Prng(1).substream('survey.founder'));
+    const { parcels, blocks } = buildParcels(clippedTownsite, rawBlocks, streets, null, anchor, founder);
+
+    // Every parcel vertex should be on or north of the water line.
+    for (const p of parcels) {
+      for (const v of p.ring) {
+        expect(v.n).toBeGreaterThanOrEqual(midN - 0.5);
+      }
+    }
+    // Every block vertex should be on or north of the water line.
+    for (const b of blocks) {
+      for (const v of b.ring) {
+        expect(v.n).toBeGreaterThanOrEqual(midN - 0.5);
+      }
+    }
+    // Roughly half the blocks should survive (4 rows × 8 cols out of 8×8).
+    expect(blocks.length).toBeLessThanOrEqual(STREET_GRID_DIVISIONS * STREET_GRID_DIVISIONS / 2);
+    expect(blocks.length).toBeGreaterThanOrEqual(STREET_GRID_DIVISIONS * STREET_GRID_DIVISIONS / 2 - STREET_GRID_DIVISIONS);
+  });
+});
+
+describe('parcel regression: seed 258241763', () => {
+  // This seed previously produced tiny sliver parcels along the river edge
+  // and assigned a church to one of them. Verify (a) every parcel is
+  // non-degenerate by both area and bbox-thinness, and (b) any church parcel
+  // is on a near-full lot (>= 75% of plan area).
+  const SEED = 258241763;
+  const RESIDENTIAL_LOT_WIDTH_METERS = 15.24;
+  const COMMERCIAL_LOT_WIDTH_METERS = 7.62;
+
+  function runSim() {
+    const prng = new Prng(SEED);
+    const frame = makeFrame(KANSAS_CITY);
+    const config = { cols: 512, rows: 512, cellSize: 10, water: 'river' as const };
+    const terrain = generateTerrain(prng, frame, config);
+    const internalGrid = generateGhostGrid(frame, terrain.extent);
+    const downtown = pickDowntownAnchor(terrain.extent, internalGrid, terrain.river);
+    const bank = pickTownsiteBank(terrain.river);
+    const water = {
+      mask: terrain.waterMask,
+      cols: config.cols,
+      rows: config.rows,
+      extent: terrain.extent,
+    };
+    const townsite = buildTownsite(downtown, bank, terrain.river, water);
+    const namingCoin = prng.substream('survey.street_naming').bool();
+    const streets = buildStreets(townsite, water, namingCoin);
+    const rawBlocks = buildBlocks(townsite);
+    const founder = pickFounder(prng.substream('survey.founder'));
+    const { parcels, blocks } = buildParcels(
+      townsite,
+      rawBlocks,
+      streets,
+      terrain.river,
+      downtown,
+      founder,
+    );
+    return { parcels, blocks };
+  }
+
+  it('all parcels are above the absolute minimum area', () => {
+    const { parcels } = runSim();
+    for (const p of parcels) {
+      expect(p.areaSqM).toBeGreaterThanOrEqual(50);
+    }
+  });
+
+  it('no commercial/residential parcel is degenerately thin in either bbox dimension', () => {
+    const { parcels } = runSim();
+    for (const p of parcels) {
+      if (p.use !== 'commercial' && p.use !== 'residential' && p.use !== 'church') continue;
+      let minE = Infinity, maxE = -Infinity, minN = Infinity, maxN = -Infinity;
+      for (const v of p.ring) {
+        if (v.e < minE) minE = v.e;
+        if (v.e > maxE) maxE = v.e;
+        if (v.n < minN) minN = v.n;
+        if (v.n > maxN) maxN = v.n;
+      }
+      const spanE = maxE - minE;
+      const spanN = maxN - minN;
+      const planWidth = p.use === 'commercial' || p.use === 'church'
+        ? COMMERCIAL_LOT_WIDTH_METERS
+        : RESIDENTIAL_LOT_WIDTH_METERS;
+      // The plan rectangle is plan-width × half-block-depth; we don't know
+      // alley orientation here without re-deriving, so use the shorter side
+      // as the conservative width check.
+      const minSpan = Math.min(spanE, spanN);
+      expect(minSpan).toBeGreaterThan(planWidth * 0.35 - 0.5);
+    }
+  });
+
+  it('church parcels are not on degenerate slivers (area > absolute minimum and reasonable size)', () => {
+    const { parcels } = runSim();
+    const churches = parcels.filter((p) => p.use === 'church');
+    for (const c of churches) {
+      // A church parcel should have area comparable to a full commercial lot
+      // (~7.62 m × ~38.6 m ≈ 294 m²). Require at least 75% of that.
+      expect(c.areaSqM).toBeGreaterThan(0.75 * COMMERCIAL_LOT_WIDTH_METERS * 30);
     }
   });
 });

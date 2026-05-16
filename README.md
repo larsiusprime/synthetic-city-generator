@@ -3,11 +3,12 @@
 A synthetic city generator with a deep, simulated history. Browser-first,
 GIS-realistic, deterministic.
 
-> **Stages 1–4 only.** Right now Hjemby generates procedural terrain (Stage 1),
+> **Stages 1–5 only.** Right now Hjemby generates procedural terrain (Stage 1),
 > a cardinal-aligned PLS-style section grid + downtown anchor (Stage 2), the
-> original townsite polygon plus trunk streets (Stage 3), and a 4×4 founding-
-> town street grid with blocks and a designated public square (Stage 4). No
-> parcels, no buildings, no agents, no time yet. See [AGENTS.md](AGENTS.md)
+> original townsite polygon plus trunk streets (Stage 3), a 4×4 founding-
+> town street grid with blocks and a designated public square (Stage 4), and
+> block-by-block parcel subdivisions at t=0 with a seeded founder owner
+> (Stage 5). No buildings, no agents, no time yet. See [AGENTS.md](AGENTS.md)
 > for what comes later and why we're not building it now.
 
 ## Quick start
@@ -35,6 +36,7 @@ Click **Export** to download a `.zip` bundle:
 | `townsite.geojson`    | FeatureCollection    | EPSG:4326        |
 | `streets.geojson`     | FeatureCollection    | EPSG:4326        |
 | `blocks.geojson`      | FeatureCollection    | EPSG:4326        |
+| `parcels.geojson`     | FeatureCollection    | EPSG:4326        |
 | `dem.tif`             | GeoTIFF (float32)    | local UTM zone   |
 | `README.txt`          | text                 | -                |
 
@@ -59,7 +61,7 @@ src/
     geo/             # UTM zone calc + proj4 wrappers
     terrain/         # Midwestern river-city heightmap algorithm
       vectorize.ts   # marching squares → contours, water polygons
-    survey/          # PLS-style ghost grid + downtown anchor picker
+    survey/          # PLS ghost grid, downtown, townsite, streets, blocks, parcels, founder
     io/              # GeoJSON + GeoTIFF exporters
   worker/            # sim Web Worker + main-thread client
   render/            # MapLibre custom WebGL layer (hillshade + hypsometric)
