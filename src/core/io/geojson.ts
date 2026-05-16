@@ -109,14 +109,14 @@ export function ghostGridToGeoJson(frame: GeoFrame, grid: GhostGrid): FeatureCol
 }
 
 export function townsiteToGeoJson(frame: GeoFrame, townsite: Townsite): FeatureCollection {
-  const ring: UtmCoord[] = [townsite.sw, townsite.se, townsite.ne, townsite.nw, townsite.sw];
+  const ring: UtmCoord[] = [...townsite.ring, townsite.ring[0]!];
   return {
     type: 'FeatureCollection',
     features: [
       {
         type: 'Feature',
         geometry: { type: 'Polygon', coordinates: [utmRingToLonLat(frame, ring)] },
-        properties: { kind: 'townsite', side_meters: townsite.sideMeters },
+        properties: { kind: 'townsite', side_meters: townsite.sideMeters, bank: townsite.bank },
       },
     ],
   };
@@ -127,7 +127,7 @@ export function streetsToGeoJson(frame: GeoFrame, streets: readonly Street[]): F
     type: 'FeatureCollection',
     features: streets.map((s) => ({
       type: 'Feature',
-      geometry: { type: 'LineString', coordinates: utmRingToLonLat(frame, [s.a, s.b]) },
+      geometry: { type: 'LineString', coordinates: utmRingToLonLat(frame, s.points) },
       properties: { kind: 'street', name: s.name, axis: s.axis, index: s.index },
     })),
   };
@@ -144,7 +144,7 @@ export function blocksToGeoJson(frame: GeoFrame, blocks: readonly Block[]): Feat
       type: 'Feature',
       geometry: {
         type: 'Polygon',
-        coordinates: [utmRingToLonLat(frame, [b.sw, b.se, b.ne, b.nw, b.sw])],
+        coordinates: [utmRingToLonLat(frame, [...b.ring, b.ring[0]!])],
       },
       properties: {
         kind: 'block',

@@ -59,9 +59,15 @@ function run(req: GenerateRequest): GenerateResponse {
   const downtown = pickDowntownAnchor(terrain.extent, grid, terrain.river);
   const bankCoin = prng.substream('survey.townsite_bank').bool();
   const bank = pickTownsiteBank(terrain.river, bankCoin);
-  const townsite = buildTownsite(downtown, bank);
+  const water = {
+    mask: terrain.waterMask,
+    cols: req.config.cols,
+    rows: req.config.rows,
+    extent: terrain.extent,
+  };
+  const townsite = buildTownsite(downtown, bank, terrain.river, water);
   const namingCoin = prng.substream('survey.street_naming').bool();
-  const streetGrid = buildStreets(townsite, downtown, namingCoin);
+  const streetGrid = buildStreets(townsite, water, namingCoin);
   const blocks = buildBlocks(townsite, downtown);
 
   return {
