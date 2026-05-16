@@ -1,4 +1,5 @@
 import type { GeoFrame, GridExtent, UtmCoord } from '../geo';
+import type { DowntownAnchor } from './downtown';
 
 export const SECTION_METERS = 1609.344;
 export const SECTIONS_PER_TOWNSHIP = 6;
@@ -23,12 +24,18 @@ export interface GhostGrid {
 
 /**
  * Generates a cardinal-aligned PLS section grid clipped to the terrain extent.
- * The frame's anchor sits exactly at the (0, 0) section corner; lines extend
- * outward in all four directions at one-mile spacing. Every sixth line in
- * each direction is tagged as a township boundary.
+ * By default the frame's anchor sits at the (0, 0) section corner. Pass
+ * `originOverride` (typically derived via `computeGridOrigin`) to shift one or
+ * both axes so the grid lines up with a chosen reference point — usually the
+ * downtown anchor, so the townsite's water-facing edge falls exactly on a
+ * section line.
  */
-export function generateGhostGrid(frame: GeoFrame, extent: GridExtent): GhostGrid {
-  const origin: UtmCoord = { e: frame.anchorE, n: frame.anchorN };
+export function generateGhostGrid(
+  frame: GeoFrame,
+  extent: GridExtent,
+  originOverride?: UtmCoord,
+): GhostGrid {
+  const origin: UtmCoord = originOverride ?? { e: frame.anchorE, n: frame.anchorN };
   const lines: GridLine[] = [];
 
   const minIE = Math.ceil((extent.minE - origin.e) / SECTION_METERS);
@@ -58,4 +65,22 @@ export function generateGhostGrid(frame: GeoFrame, extent: GridExtent): GhostGri
   }
 
   return { origin, lines };
+}
+
+/**
+ * Picks a grid origin such that the downtown anchor lands on a section corner
+ * of the resulting grid. The downtown anchor lies on a section line of the
+ * default (frame-anchored) grid in one axis; the perpendicular axis is shifted
+ * to also pass through the anchor. For riverless cities (anchor already at a
+ * section corner) this returns the frame anchor unchanged.
+ */
+export function computeGridOrigin(downtown: DowntownAnchor, frame: GeoFrame): UtmCoord {
+  const eRel = (downtown.utm.e - frame.anchorE) / SECTION_METERS;
+  const nRel = (downtown.utm.n - frame.anchorN) / SECTION_METERS;
+  const onMeridian = Math.abs(eRel - Math.round(eRel)) < 1e-4;
+  const onParallel = Math.abs(nRel - Math.round(nRel)) < 1e-4;
+  return {
+    e: onMeridian ? frame.anchorE : downtown.utm.e,
+    n: onParallel ? frame.anchorN : downtown.utm.n,
+  };
 }

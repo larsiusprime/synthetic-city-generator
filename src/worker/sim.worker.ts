@@ -8,6 +8,7 @@ import {
   buildBlocks,
   buildStreets,
   buildTownsite,
+  computeGridOrigin,
   generateGhostGrid,
   pickDowntownAnchor,
   pickTownsiteBank,
@@ -55,8 +56,9 @@ function run(req: GenerateRequest): GenerateResponse {
     terrain.extent,
   );
 
-  const grid = generateGhostGrid(frame, terrain.extent);
-  const downtown = pickDowntownAnchor(terrain.extent, grid, terrain.river);
+  // Internal grid (anchored to the user's lat/lon) is used to pick the downtown anchor.
+  const internalGrid = generateGhostGrid(frame, terrain.extent);
+  const downtown = pickDowntownAnchor(terrain.extent, internalGrid, terrain.river);
   const bank = pickTownsiteBank(terrain.river);
   const water = {
     mask: terrain.waterMask,
@@ -68,6 +70,10 @@ function run(req: GenerateRequest): GenerateResponse {
   const namingCoin = prng.substream('survey.street_naming').bool();
   const streetGrid = buildStreets(townsite, water, namingCoin);
   const blocks = buildBlocks(townsite, downtown);
+
+  // Re-generate the displayed grid with origin aligned to the downtown anchor so
+  // the townsite's water-facing edge lines up with a section line.
+  const grid = generateGhostGrid(frame, terrain.extent, computeGridOrigin(downtown, frame));
 
   return {
     id: req.id,
